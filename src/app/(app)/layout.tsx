@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { Sidebar } from "@/components/nav/sidebar";
 import { Toaster } from "@/components/ui/sonner";
+import { CommandPaletteLoader } from "@/components/command-palette/loader";
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   const supabase = await createClient();
@@ -25,6 +26,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
         <Sidebar userEmail={userEmail} />
       </div>
       <div className="flex flex-1 flex-col overflow-hidden">{children}</div>
+      <CommandPaletteLoader />
       <Toaster />
     </div>
   );

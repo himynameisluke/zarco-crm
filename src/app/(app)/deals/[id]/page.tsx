@@ -35,6 +35,7 @@ import { PageHeader } from "@/components/page-header";
 import { EmptyState } from "@/components/empty-state";
 import { DealStageSelect } from "@/components/deals/deal-stage-select";
 import { DeleteDealButton } from "@/components/deals/delete-deal-button";
+import { ActivityComposer } from "@/components/activity/activity-composer";
 import { DEAL_TYPE_LABELS, type DealType } from "../schema";
 
 function formatMoney(pence: number | null, currency: string) {
@@ -215,6 +216,7 @@ export default async function DealDetailPage({
         </Card>
 
         <div className="space-y-6 lg:col-span-2">
+          <ActivityComposer subjectType="deal" subjectId={deal.id} />
           <Card>
             <CardHeader className="flex flex-row items-center justify-between">
               <CardTitle>Quotes ({dealQuotes.length})</CardTitle>

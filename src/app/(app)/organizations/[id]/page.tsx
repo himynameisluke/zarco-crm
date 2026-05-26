@@ -26,6 +26,7 @@ import { Topbar } from "@/components/nav/topbar";
 import { PageHeader } from "@/components/page-header";
 import { EmptyState } from "@/components/empty-state";
 import { DeleteOrganizationButton } from "@/components/organizations/delete-organization-button";
+import { ActivityComposer } from "@/components/activity/activity-composer";
 
 function contactName(c: { firstName: string | null; lastName: string | null }) {
   return [c.firstName, c.lastName].filter(Boolean).join(" ") || "Unnamed";
@@ -162,6 +163,7 @@ export default async function OrganizationDetailPage({
         </Card>
 
         <div className="space-y-6 lg:col-span-2">
+          <ActivityComposer subjectType="organization" subjectId={org.id} />
           <Card>
             <CardHeader className="flex flex-row items-center justify-between">
               <CardTitle>Contacts ({orgContacts.length})</CardTitle>

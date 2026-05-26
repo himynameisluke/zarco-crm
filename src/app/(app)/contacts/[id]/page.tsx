@@ -21,6 +21,7 @@ import { Topbar } from "@/components/nav/topbar";
 import { PageHeader } from "@/components/page-header";
 import { EmptyState } from "@/components/empty-state";
 import { DeleteContactButton } from "@/components/contacts/delete-contact-button";
+import { ActivityComposer } from "@/components/activity/activity-composer";
 
 function fullName(c: { firstName: string | null; lastName: string | null }) {
   return [c.firstName, c.lastName].filter(Boolean).join(" ") || "Unnamed contact";
@@ -139,7 +140,9 @@ export default async function ContactDetailPage({
           </CardContent>
         </Card>
 
-        <Card className="lg:col-span-2">
+        <div className="lg:col-span-2 space-y-4">
+          <ActivityComposer subjectType="contact" subjectId={contact.id} />
+          <Card>
           <CardHeader>
             <CardTitle>Activity</CardTitle>
           </CardHeader>
@@ -169,6 +172,7 @@ export default async function ContactDetailPage({
             )}
           </CardContent>
         </Card>
+        </div>
       </div>
       </main>
     </>

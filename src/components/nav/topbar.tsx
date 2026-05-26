@@ -1,9 +1,10 @@
-import { Bell, ChevronRight, Sparkles } from "lucide-react";
+import { Bell, ChevronRight } from "lucide-react";
 import type { ReactNode } from "react";
 
 import { createClient } from "@/lib/supabase/server";
 import { Sidebar } from "@/components/nav/sidebar";
 import { MobileSidebarTrigger } from "@/components/nav/mobile-sidebar";
+import { SparkleTrigger } from "@/components/nav/sparkle-trigger";
 
 export type Crumb = {
   label: string;
@@ -128,9 +129,7 @@ export async function Topbar({ crumbs = [], tabs, actions }: TopbarProps) {
       <button type="button" className="btn btn-ghost btn-icon" title="Notifications">
         <Bell size={15} />
       </button>
-      <button type="button" className="btn btn-ghost btn-icon" title="Ask Claude">
-        <Sparkles size={15} color="var(--amber)" />
-      </button>
+      <SparkleTrigger />
     </header>
   );
 }

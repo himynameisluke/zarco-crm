@@ -174,6 +174,9 @@ export function Sidebar({ userEmail = "guest@zarco.uk" }: SidebarProps) {
         <button
           type="button"
           className="input"
+          onClick={() => {
+            window.dispatchEvent(new Event("zarco:command-palette:open"));
+          }}
           style={{
             justifyContent: "flex-start",
             height: 28,
