@@ -6,6 +6,13 @@ import { db } from "@/lib/db";
 import { activities } from "@/lib/db/schema";
 import { getMcpContext, textResult } from "../context";
 
+const LOGGABLE_TYPES = [
+  "email",
+  "call",
+  "meeting",
+  "note",
+] as const;
+
 const ACTIVITY_TYPES = [
   "email",
   "call",
@@ -136,6 +143,57 @@ export function registerActivityTools(server: McpServer) {
         count: rows.length,
         activities: rows,
       });
+    },
+  );
+
+  server.registerTool(
+    "log_activity",
+    {
+      description:
+        "Log a note / call / meeting / email against any entity (contact, organization, deal, or project). Use this to record things Claude observed in a conversation, or to attach a transcript to a contact. The activity is stamped with source='mcp' so it's distinguishable from manual entries in the timeline.",
+      inputSchema: {
+        type: z.enum(LOGGABLE_TYPES),
+        subjectType: z.enum(SUBJECT_TYPES),
+        subjectId: z.string().uuid(),
+        subject: z
+          .string()
+          .trim()
+          .min(1)
+          .max(500)
+          .describe("Short headline — what happened"),
+        body: z
+          .string()
+          .trim()
+          .max(50000)
+          .optional()
+          .describe("Long-form body, e.g. a transcript or meeting notes"),
+        occurredAt: z
+          .string()
+          .datetime({ offset: true })
+          .optional()
+          .describe("ISO 8601 timestamp; defaults to now"),
+      },
+      annotations: { destructiveHint: false, idempotentHint: false },
+    },
+    async (input, { authInfo }) => {
+      const { userId } = getMcpContext(authInfo);
+      const occurredAt = input.occurredAt ? new Date(input.occurredAt) : new Date();
+
+      const [inserted] = await db
+        .insert(activities)
+        .values({
+          type: input.type,
+          source: "mcp",
+          subjectType: input.subjectType,
+          subjectId: input.subjectId,
+          subject: input.subject,
+          body: input.body ?? null,
+          occurredAt,
+          createdBy: userId,
+        })
+        .returning();
+
+      return textResult({ logged: inserted });
     },
   );
 }

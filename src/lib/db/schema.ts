@@ -58,6 +58,7 @@ export const activitySource = pgEnum("activity_source", [
   "granola",
   "email_sync",
   "system",
+  "mcp",
 ]);
 
 export const subjectType = pgEnum("subject_type", [

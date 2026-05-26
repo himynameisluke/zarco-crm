@@ -11,6 +11,7 @@ import {
   projects,
   quotes,
 } from "@/lib/db/schema";
+import { auditMcpWrite } from "../audit";
 import { getMcpContext, textResult } from "../context";
 
 const STAGE_VALUES = [
@@ -21,6 +22,8 @@ const STAGE_VALUES = [
   "won",
   "lost",
 ] as const;
+
+const TYPE_VALUES = ["engagement", "sale", "project", "retainer"] as const;
 
 export function registerDealTools(server: McpServer) {
   server.registerTool(
@@ -170,6 +173,104 @@ export function registerDealTools(server: McpServer) {
         projects: dealProjects,
         quotes: dealQuotes,
       });
+    },
+  );
+
+  server.registerTool(
+    "create_deal",
+    {
+      description:
+        "Create a new deal. Name is required; everything else optional. valuePence is in integer pence (e.g. £15,000 = 1500000). Stage defaults to 'lead', type to 'sale'. Logs an audit activity.",
+      inputSchema: {
+        name: z.string().trim().min(1).max(200),
+        type: z.enum(TYPE_VALUES).default("sale"),
+        stage: z.enum(STAGE_VALUES).default("lead"),
+        valuePence: z.number().int().min(0).max(1_000_000_000_00).optional(),
+        currency: z.string().trim().length(3).default("GBP"),
+        closeDate: z
+          .string()
+          .regex(/^\d{4}-\d{2}-\d{2}$/, "Use YYYY-MM-DD")
+          .optional(),
+        organizationId: z.string().uuid().optional(),
+        primaryContactId: z.string().uuid().optional(),
+      },
+      annotations: { destructiveHint: false, idempotentHint: false },
+    },
+    async (input, { authInfo }) => {
+      const { userId } = getMcpContext(authInfo);
+      const [inserted] = await db
+        .insert(deals)
+        .values({
+          name: input.name,
+          type: input.type,
+          stage: input.stage,
+          valuePence: input.valuePence ?? null,
+          currency: input.currency,
+          closeDate: input.closeDate ?? null,
+          organizationId: input.organizationId ?? null,
+          primaryContactId: input.primaryContactId ?? null,
+          ownerId: userId,
+        })
+        .returning();
+
+      await auditMcpWrite({
+        type: "note",
+        subjectType: "deal",
+        subjectId: inserted.id,
+        subject: `Created deal ${inserted.name}`,
+        body: `Stage: ${inserted.stage} · Type: ${inserted.type}`,
+        userId,
+      });
+
+      return textResult({ created: inserted });
+    },
+  );
+
+  server.registerTool(
+    "update_deal_stage",
+    {
+      description:
+        "Move a deal to a different pipeline stage. Logs the stage change as an audit activity so it shows on the deal timeline.",
+      inputSchema: {
+        id: z.string().uuid(),
+        stage: z.enum(STAGE_VALUES),
+      },
+      annotations: { destructiveHint: false, idempotentHint: true },
+    },
+    async ({ id, stage }, { authInfo }) => {
+      const { userId } = getMcpContext(authInfo);
+
+      const [before] = await db
+        .select({ name: deals.name, stage: deals.stage })
+        .from(deals)
+        .where(eq(deals.id, id))
+        .limit(1);
+
+      if (!before) {
+        return textResult({ error: "not_found", id });
+      }
+
+      if (before.stage === stage) {
+        return textResult({ unchanged: { id, stage } });
+      }
+
+      const [updated] = await db
+        .update(deals)
+        .set({ stage, updatedAt: new Date() })
+        .where(eq(deals.id, id))
+        .returning();
+
+      await auditMcpWrite({
+        type: "status_change",
+        subjectType: "deal",
+        subjectId: id,
+        subject: `${before.stage} → ${stage}`,
+        body: `Deal "${before.name}" moved from ${before.stage} to ${stage}`,
+        userId,
+        metadata: { fromStage: before.stage, toStage: stage },
+      });
+
+      return textResult({ updated });
     },
   );
 }

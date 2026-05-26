@@ -4,7 +4,14 @@ import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 
 import { db } from "@/lib/db";
 import { contacts, deals, organizations } from "@/lib/db/schema";
+import { auditMcpWrite } from "../audit";
 import { getMcpContext, textResult } from "../context";
+
+function nullable(value: string | undefined | null): string | null {
+  if (!value) return null;
+  const trimmed = value.trim();
+  return trimmed.length ? trimmed : null;
+}
 
 export function registerOrganizationTools(server: McpServer) {
   server.registerTool(
@@ -100,6 +107,48 @@ export function registerOrganizationTools(server: McpServer) {
         contacts: orgContacts,
         deals: orgDeals,
       });
+    },
+  );
+
+  server.registerTool(
+    "create_organization",
+    {
+      description:
+        "Create a new organization. Name is required; everything else optional. Returns the created organization with its UUID. Logs an audit activity.",
+      inputSchema: {
+        name: z.string().trim().min(1).max(200),
+        domain: z.string().trim().max(200).optional(),
+        website: z.string().trim().url().max(500).optional(),
+        industry: z.string().trim().max(120).optional(),
+        employeeCount: z.number().int().min(0).max(10_000_000).optional(),
+        notes: z.string().trim().max(5000).optional(),
+      },
+      annotations: { destructiveHint: false, idempotentHint: false },
+    },
+    async (input, { authInfo }) => {
+      const { userId } = getMcpContext(authInfo);
+      const [inserted] = await db
+        .insert(organizations)
+        .values({
+          name: input.name,
+          domain: nullable(input.domain),
+          website: nullable(input.website),
+          industry: nullable(input.industry),
+          employeeCount: input.employeeCount ?? null,
+          notes: nullable(input.notes),
+          ownerId: userId,
+        })
+        .returning();
+
+      await auditMcpWrite({
+        type: "note",
+        subjectType: "organization",
+        subjectId: inserted.id,
+        subject: `Created organization ${inserted.name}`,
+        userId,
+      });
+
+      return textResult({ created: inserted });
     },
   );
 }

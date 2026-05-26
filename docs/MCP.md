@@ -13,6 +13,7 @@ prerequisite; clients can't reach `/mcp` without a valid bearer token.
   phase-A stub
 - 8 read-only tools across contacts, organizations, deals, and the
   activity timeline
+- 8 write tools that mutate the CRM with a full audit trail
 - `mcp-handler` (Vercel's Next.js adapter) wired to the OAuth bearer
   verification from the phase-A branch
 
@@ -54,6 +55,46 @@ Inputs validated with zod; outputs are JSON-encoded text content.
 |---|---|---|
 | `search_activities` | `query?: string`, `type?: enum`, `subjectType?: enum`, `days?: 1-365` | Up to 50 activities, newest first |
 | `list_recent_activities` | `days?: 1-90` (default 7), `limit?: 1-100` (default 50) | Recent activities across the whole CRM |
+
+## Write tools — mutations
+
+Every write tool inserts an audit activity (source=`mcp`) on the affected
+entity's timeline. Failures of the audit insert are caught and logged but
+never roll back the underlying write. See
+[src/lib/mcp/audit.ts](../src/lib/mcp/audit.ts).
+
+### Contacts ([contacts.ts](../src/lib/mcp/tools/contacts.ts))
+
+| Tool | Input | Effect |
+|---|---|---|
+| `create_contact` | `firstName` (req), `lastName?`, `email?`, `phone?`, `title?`, `linkedinUrl?`, `organizationId?`, `notes?` | Inserts contact, audits as 'note' on the new contact |
+| `update_contact` | `id`, plus any subset of the create fields | Partial update — only provided fields change. Audits with the changed-field list |
+
+### Organizations ([organizations.ts](../src/lib/mcp/tools/organizations.ts))
+
+| Tool | Input | Effect |
+|---|---|---|
+| `create_organization` | `name` (req), `domain?`, `website?`, `industry?`, `employeeCount?`, `notes?` | Inserts org, audits as 'note' on the new org |
+
+### Deals ([deals.ts](../src/lib/mcp/tools/deals.ts))
+
+| Tool | Input | Effect |
+|---|---|---|
+| `create_deal` | `name` (req), `type?`, `stage?`, `valuePence?` (integer), `currency?` (default GBP), `closeDate?` (YYYY-MM-DD), `organizationId?`, `primaryContactId?` | Inserts deal, audits with stage + type |
+| `update_deal_stage` | `id`, `stage` | Moves the deal. Audits as 'status_change' with the before→after stages in metadata. No-op if stage unchanged |
+
+### Activities ([activities.ts](../src/lib/mcp/tools/activities.ts))
+
+| Tool | Input | Effect |
+|---|---|---|
+| `log_activity` | `type` (email/call/meeting/note), `subjectType`, `subjectId`, `subject` (headline), `body?` (long-form / transcript), `occurredAt?` (ISO) | Inserts an activity directly. Source is hardcoded to `mcp`. Use this for Granola transcripts, manually-noted call summaries, etc. |
+
+### Tasks ([tasks.ts](../src/lib/mcp/tools/tasks.ts))
+
+| Tool | Input | Effect |
+|---|---|---|
+| `create_task` | `title` (req), `description?`, `dueAt?` (ISO), `subjectType?` + `subjectId?` (both or neither) | Inserts task assigned to the calling user. If linked to an entity, audits as a note on that entity's timeline |
+| `complete_task` | `id` | Sets status=done + completedAt. If linked to an entity, audits as 'task_completed' on that entity's timeline |
 
 ## Connecting from clients
 
@@ -153,12 +194,13 @@ request can land on a different lambda — wire Upstash KV by setting
 
 ## What's NOT here (yet)
 
-- Write tools (phase C — separate branch). No `create_contact`, no
-  `log_activity`, no `update_deal_stage` from MCP yet.
-- High-stakes tools (phase D) — sending quotes, sending email, deletes.
-  Will use MCP elicitation for confirmation.
-- The composite `record_meeting(transcript)` tool (phase E) — runs Haiku 4.5
-  server-side to extract entities and draft follow-ups.
+- **High-stakes tools** (Phase D) — `send_quote`, `send_email`, `delete_*`.
+  These will use MCP elicitation to surface a confirmation prompt in the
+  Claude client before executing.
+- **The composite `record_meeting(transcript)` tool** — dropped per the
+  Granola Path B decision. Luke's Claude composes the narrow primitives
+  (find_contact + log_activity + create_task) via his subscription
+  instead. See `memory/mcp-design.md` for the reasoning.
 
 ## Testing locally end-to-end
 
