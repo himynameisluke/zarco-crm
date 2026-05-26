@@ -29,11 +29,20 @@ Custom CRM for Zarco. Built on Next.js 16 (App Router) + Supabase + Drizzle, hos
    pnpm db:migrate    # apply to Supabase
    ```
 
-5. **Start the dev server**
+5. **Apply RLS policies** — paste [supabase/policies.sql](supabase/policies.sql) into the Supabase SQL editor and run it. This locks down every table to authenticated users only.
+
+6. **Configure Supabase Auth** — in the Supabase dashboard:
+   - Authentication → Providers → enable Email (magic link)
+   - Authentication → URL Configuration → set Site URL to `http://localhost:3000` for dev (and your Vercel URL once deployed)
+   - Authentication → URL Configuration → add `http://localhost:3000/auth/callback` to Redirect URLs
+
+7. **Start the dev server**
 
    ```sh
    pnpm dev
    ```
+
+   Visit <http://localhost:3000> → you'll be redirected to `/login` → enter your email → click the magic link → you're in the app.
 
 ## Stack
 
