@@ -27,6 +27,7 @@ alter table public.quotes           enable row level security;
 alter table public.quote_line_items enable row level security;
 alter table public.email_campaigns  enable row level security;
 alter table public.email_sends      enable row level security;
+alter table public.inbox_items      enable row level security;
 
 -- =============================================================================
 -- Phase 1: any authenticated user can read/write everything
@@ -60,6 +61,9 @@ create policy "authenticated_all" on public.email_campaigns
   for all to authenticated using (true) with check (true);
 
 create policy "authenticated_all" on public.email_sends
+  for all to authenticated using (true) with check (true);
+
+create policy "authenticated_all" on public.inbox_items
   for all to authenticated using (true) with check (true);
 
 -- =============================================================================

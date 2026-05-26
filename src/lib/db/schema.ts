@@ -292,6 +292,58 @@ export const emailCampaigns = pgTable("email_campaigns", {
 });
 
 // =============================================================================
+// Inbox — pre-activity items needing triage
+// =============================================================================
+// Items land here from external sources (Granola transcripts not yet linked
+// to a contact, MCP suggestions awaiting approval, Resend bounce events,
+// later: raw Outlook messages). Triage converts an inbox_item into a real
+// activity attached to a contact / org / deal / project.
+
+export const inboxItemType = pgEnum("inbox_item_type", [
+  "transcript",
+  "email",
+  "mcp_suggestion",
+  "bounce",
+  "other",
+]);
+
+export const inboxItemSource = pgEnum("inbox_item_source", [
+  "granola",
+  "outlook",
+  "resend",
+  "mcp",
+  "system",
+]);
+
+export const inboxItemStatus = pgEnum("inbox_item_status", [
+  "pending",
+  "processed",
+  "dismissed",
+]);
+
+export const inboxItems = pgTable(
+  "inbox_items",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    type: inboxItemType("type").notNull(),
+    source: inboxItemSource("source").notNull(),
+    title: text("title").notNull(),
+    body: text("body"),
+    metadata: jsonb("metadata").notNull().default({}),
+    status: inboxItemStatus("status").notNull().default("pending"),
+    // Set when triaged → activity. Lets us audit where an item ended up.
+    processedIntoActivityId: uuid("processed_into_activity_id"),
+    receivedAt: timestamp("received_at", { withTimezone: true }).notNull().defaultNow(),
+    processedAt: timestamp("processed_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    index("inbox_items_status_idx").on(t.status),
+    index("inbox_items_received_idx").on(t.receivedAt),
+  ],
+);
+
+// =============================================================================
 // OAuth 2.1 + MCP Authorization
 // =============================================================================
 // Implements the server side of MCP's OAuth requirements (RFC 7591 dynamic

@@ -25,16 +25,21 @@ import { cn } from "@/lib/utils";
 import { signOut } from "@/app/(auth)/actions";
 import { ZarcoMark } from "./zarco-mark";
 
+export type SidebarCounts = {
+  inbox?: number;
+  tasks?: number;
+};
+
 type NavItemDef = {
   href: string;
   label: string;
   icon: typeof Home;
-  count?: string | number;
+  countKey?: keyof SidebarCounts;
 };
 
 const PRIMARY_NAV: NavItemDef[] = [
   { href: "/", label: "Home", icon: Home },
-  { href: "/inbox", label: "Inbox", icon: Inbox },
+  { href: "/inbox", label: "Inbox", icon: Inbox, countKey: "inbox" },
 ];
 
 const WORKSPACE_NAV: NavItemDef[] = [
@@ -43,7 +48,7 @@ const WORKSPACE_NAV: NavItemDef[] = [
   { href: "/deals", label: "Deals", icon: SquareKanban },
   { href: "/projects", label: "Projects", icon: Layers },
   { href: "/activity", label: "Activity", icon: Activity },
-  { href: "/tasks", label: "Tasks", icon: ListChecks },
+  { href: "/tasks", label: "Tasks", icon: ListChecks, countKey: "tasks" },
   { href: "/quotes", label: "Quotes", icon: FileText },
   { href: "/campaigns", label: "Campaigns", icon: Megaphone },
 ];
@@ -69,18 +74,21 @@ const PINNED_VIEWS: PinnedView[] = [
 function NavItem({
   item,
   active,
+  counts,
 }: {
   item: NavItemDef;
   active: boolean;
+  counts: SidebarCounts;
 }) {
   const Icon = item.icon;
+  const count = item.countKey ? counts[item.countKey] : undefined;
   return (
     <li>
       <Link href={item.href} className={cn("nav-item", active && "--active")}>
         <Icon className="ni-ico" size={15} />
         <span className="grow truncate">{item.label}</span>
-        {item.count !== undefined ? (
-          <span className="ni-count">{item.count}</span>
+        {count !== undefined && count > 0 ? (
+          <span className="ni-count">{count}</span>
         ) : null}
       </Link>
     </li>
@@ -89,6 +97,7 @@ function NavItem({
 
 type SidebarProps = {
   userEmail?: string;
+  counts?: SidebarCounts;
 };
 
 function getInitials(email: string) {
@@ -100,7 +109,7 @@ function getInitials(email: string) {
   return local.slice(0, 2).toUpperCase();
 }
 
-export function Sidebar({ userEmail = "guest@zarco.uk" }: SidebarProps) {
+export function Sidebar({ userEmail = "guest@zarco.uk", counts = {} }: SidebarProps) {
   const pathname = usePathname();
 
   const isActive = (href: string) =>
@@ -205,7 +214,7 @@ export function Sidebar({ userEmail = "guest@zarco.uk" }: SidebarProps) {
       >
         <ul style={{ display: "flex", flexDirection: "column", gap: 1, listStyle: "none", margin: 0, padding: 0 }}>
           {PRIMARY_NAV.map((item) => (
-            <NavItem key={item.href} item={item} active={isActive(item.href)} />
+            <NavItem key={item.href} item={item} active={isActive(item.href)} counts={counts} />
           ))}
         </ul>
 
@@ -232,7 +241,7 @@ export function Sidebar({ userEmail = "guest@zarco.uk" }: SidebarProps) {
           </div>
           <ul style={{ display: "flex", flexDirection: "column", gap: 1, listStyle: "none", margin: 0, padding: 0 }}>
             {WORKSPACE_NAV.map((item) => (
-              <NavItem key={item.href} item={item} active={isActive(item.href)} />
+              <NavItem key={item.href} item={item} active={isActive(item.href)} counts={counts} />
             ))}
           </ul>
         </div>
@@ -263,7 +272,7 @@ export function Sidebar({ userEmail = "guest@zarco.uk" }: SidebarProps) {
       <div style={{ borderTop: "1px solid var(--hairline)", padding: 8 }}>
         <ul style={{ display: "flex", flexDirection: "column", gap: 1, listStyle: "none", margin: 0, padding: 0 }}>
           {SETTINGS_NAV.map((item) => (
-            <NavItem key={item.href} item={item} active={isActive(item.href)} />
+            <NavItem key={item.href} item={item} active={isActive(item.href)} counts={counts} />
           ))}
         </ul>
         <div
