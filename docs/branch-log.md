@@ -21,6 +21,7 @@ one, not main).
 | 2026-05-26 | `feat/projects-campaigns-polish` | 23 | +1,831 | -5 | 1 | Projects module, ⌘K command palette, `/settings/mcp`, activity composer |
 | 2026-05-26 | `feat/inbox-v1` | 10 | +2,894 | -11 | 1 | Inbox processing queue (`inbox_items` schema + triage UI + sidebar count) |
 | 2026-05-26 | `feat/quotes-builder` | 12 | +1,890 | -9 | 1 | Quote builder with live totals + public client view at `/q/[token]` |
+| 2026-05-26 | `feat/campaigns-and-high-stakes` | 13 | +1,593 | -9 | 1 | Campaigns module (draft mode, no Resend); MCP delete_* + send_* (stubbed) with confirm-required gating; Outlook/Resend/Granola placeholder cards on /settings/mcp |
 
 ## Running totals (cumulative, since `main`)
 
@@ -35,7 +36,8 @@ one, not main).
 | `feat/mcp-writes` | +15,520 | |
 | `feat/projects-campaigns-polish` | +17,346 | |
 | `feat/inbox-v1` | +20,229 | |
-| `feat/quotes-builder` | +22,110 | Current PR head |
+| `feat/quotes-builder` | +22,110 | Merged to main in PR #1 |
+| `feat/campaigns-and-high-stakes` | +1,584 | Off main, current branch |
 
 Numbers are inflated by the design bundle archived in `docs/design/` (HTML +
 JSX prototypes for reference) — production code is roughly half that.
