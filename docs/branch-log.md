@@ -22,6 +22,7 @@ one, not main).
 | 2026-05-26 | `feat/inbox-v1` | 10 | +2,894 | -11 | 1 | Inbox processing queue (`inbox_items` schema + triage UI + sidebar count) |
 | 2026-05-26 | `feat/quotes-builder` | 12 | +1,890 | -9 | 1 | Quote builder with live totals + public client view at `/q/[token]` |
 | 2026-05-26 | `feat/campaigns-and-high-stakes` | 13 | +1,593 | -9 | 1 | Campaigns module (draft mode, no Resend); MCP delete_* + send_* (stubbed) with confirm-required gating; Outlook/Resend/Granola placeholder cards on /settings/mcp |
+| 2026-05-26 | `feat/vercel-deploy` | 4 | +198 | 0 | 1 | Deploy hand-off: vercel.json (60s maxDuration on /mcp), expanded .env.example (REDIS_URL + future-integration vars), docs/DEPLOY.md with step-by-step, fix .gitignore to track .env.example |
 
 ## Running totals (cumulative, since `main`)
 
@@ -37,7 +38,8 @@ one, not main).
 | `feat/projects-campaigns-polish` | +17,346 | |
 | `feat/inbox-v1` | +20,229 | |
 | `feat/quotes-builder` | +22,110 | Merged to main in PR #1 |
-| `feat/campaigns-and-high-stakes` | +1,584 | Off main, current branch |
+| `feat/campaigns-and-high-stakes` | +1,584 | Merged to main in PR #2 |
+| `feat/vercel-deploy` | +198 | Off main, current branch — docs + config only, no app code change |
 
 Numbers are inflated by the design bundle archived in `docs/design/` (HTML +
 JSX prototypes for reference) — production code is roughly half that.
