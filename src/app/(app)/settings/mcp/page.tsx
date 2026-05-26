@@ -1,6 +1,6 @@
 import { desc, eq, sql } from "drizzle-orm";
 import { headers } from "next/headers";
-import { Plug, Sparkles, Zap } from "lucide-react";
+import { Inbox, Mail, Plug, Send, Sparkles, Zap } from "lucide-react";
 
 import { db } from "@/lib/db";
 import { activities, oauthAccessTokens, oauthClients } from "@/lib/db/schema";
@@ -121,6 +121,137 @@ export default async function MCPSettingsPage() {
                 {mcpUrl}
               </span>
               <CopyButton text={mcpUrl} />
+            </div>
+          </section>
+
+          {/* Pending integrations */}
+          <section>
+            <div
+              style={{
+                display: "flex",
+                alignItems: "baseline",
+                justifyContent: "space-between",
+                marginBottom: 4,
+              }}
+            >
+              <h2
+                className="t-display"
+                style={{ fontSize: 18, margin: 0, color: "var(--ink)" }}
+              >
+                Pending integrations
+              </h2>
+              <span className="t-mono" style={{ fontSize: 11, color: "var(--ink-4)" }}>
+                3
+              </span>
+            </div>
+            <p style={{ fontSize: 13, color: "var(--ink-3)", margin: "0 0 12px" }}>
+              Connect-once integrations that unlock the rest of the CRM. Each
+              card describes what ships once it&apos;s wired.
+            </p>
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))",
+                gap: 12,
+              }}
+            >
+              {[
+                {
+                  icon: Inbox,
+                  title: "Outlook sync",
+                  body:
+                    "Read + send via Microsoft Graph. Sync threads into the activity timeline, surface unrouted messages in the inbox queue, reply from inside Zarco.",
+                  status: "Needs Microsoft Graph OAuth + sync worker",
+                },
+                {
+                  icon: Send,
+                  title: "Resend",
+                  body:
+                    "Outbound deliverability for Campaigns, send_quote, send_email. Needs a Resend API key + SPF/DKIM/DMARC records on zarco.uk.",
+                  status: "Needs RESEND_API_KEY + DNS",
+                },
+                {
+                  icon: Mail,
+                  title: "Granola",
+                  body:
+                    "Webhook drops meeting transcripts straight into the inbox queue. You triage them into the right contact/deal via the existing inbox UI.",
+                  status: "Needs Granola webhook URL configured",
+                },
+              ].map((it) => {
+                const Icon = it.icon;
+                return (
+                  <div
+                    key={it.title}
+                    className="card"
+                    style={{
+                      padding: 16,
+                      display: "flex",
+                      flexDirection: "column",
+                      gap: 8,
+                    }}
+                  >
+                    <div
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: 8,
+                      }}
+                    >
+                      <Icon size={14} color="var(--ink-3)" />
+                      <h3
+                        style={{
+                          fontSize: 13,
+                          fontWeight: 500,
+                          color: "var(--ink)",
+                          margin: 0,
+                        }}
+                      >
+                        {it.title}
+                      </h3>
+                      <span
+                        className="chip --mute"
+                        style={{ height: 18, fontSize: 10, marginLeft: "auto" }}
+                      >
+                        Not connected
+                      </span>
+                    </div>
+                    <p
+                      style={{
+                        fontSize: 12,
+                        color: "var(--ink-3)",
+                        margin: 0,
+                        lineHeight: 1.5,
+                      }}
+                    >
+                      {it.body}
+                    </p>
+                    <p
+                      className="t-mono"
+                      style={{
+                        fontSize: 10.5,
+                        color: "var(--ink-4)",
+                        margin: 0,
+                        letterSpacing: "0.04em",
+                      }}
+                    >
+                      {it.status}
+                    </p>
+                    <button
+                      type="button"
+                      className="btn btn-sm"
+                      disabled
+                      style={{
+                        opacity: 0.5,
+                        cursor: "not-allowed",
+                        alignSelf: "flex-start",
+                        marginTop: 4,
+                      }}
+                    >
+                      Connect (coming soon)
+                    </button>
+                  </div>
+                );
+              })}
             </div>
           </section>
 

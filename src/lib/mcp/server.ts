@@ -5,10 +5,11 @@ import { registerOrganizationTools } from "./tools/organizations";
 import { registerDealTools } from "./tools/deals";
 import { registerActivityTools } from "./tools/activities";
 import { registerTaskTools } from "./tools/tasks";
+import { registerHighStakesTools } from "./tools/high-stakes";
 
 export const MCP_SERVER_INFO = {
   name: "zarco-crm",
-  version: "0.2.0",
+  version: "0.3.0",
 } as const;
 
 /**
@@ -24,10 +25,11 @@ export const MCP_SERVER_INFO = {
  *   - Activities:     log_activity
  *   - Tasks:          create_task, complete_task
  *
- * Still deferred to a future phase: high-stakes writes (send_quote,
- * send_email, delete_*) gated by MCP elicitation, and the composite
- * record_meeting tool (dropped per Path B decision — Luke's Claude
- * composes the narrow primitives via subscription instead).
+ * High-stakes tools (require confirm=true, marked destructiveHint):
+ *   - Deletes:        delete_contact, delete_organization, delete_deal
+ *   - Sends (stub):   send_email, send_quote — real delivery ships with
+ *                     the Resend integration; for now they record intent
+ *                     and transition state.
  */
 export function registerTools(server: McpServer) {
   registerContactTools(server);
@@ -35,4 +37,5 @@ export function registerTools(server: McpServer) {
   registerDealTools(server);
   registerActivityTools(server);
   registerTaskTools(server);
+  registerHighStakesTools(server);
 }

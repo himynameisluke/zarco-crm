@@ -96,6 +96,31 @@ never roll back the underlying write. See
 | `create_task` | `title` (req), `description?`, `dueAt?` (ISO), `subjectType?` + `subjectId?` (both or neither) | Inserts task assigned to the calling user. If linked to an entity, audits as a note on that entity's timeline |
 | `complete_task` | `id` | Sets status=done + completedAt. If linked to an entity, audits as 'task_completed' on that entity's timeline |
 
+## High-stakes tools — destructive / external
+
+All require `confirm: true` to actually execute. Without it the tool returns
+an `error: 'confirm_required'` response, prompting Claude to ask the user in
+plain language before retrying. The pattern stands in for MCP
+elicitation (`mcp/elicitation`), which has patchy client support today.
+
+`destructiveHint: true` is set on the deletes so MCP clients can render them
+with extra ceremony.
+
+### Deletes ([high-stakes.ts](../src/lib/mcp/tools/high-stakes.ts))
+
+| Tool | Input | Effect |
+|---|---|---|
+| `delete_contact` | `id`, `confirm: true` | Removes contact; activities/tasks linked to it survive as orphans |
+| `delete_organization` | `id`, `confirm: true` | Removes org; contacts + deals + projects survive with `organizationId` nulled |
+| `delete_deal` | `id`, `confirm: true` | Removes deal; activities + quotes + projects survive with `dealId` nulled |
+
+### Sends — **stubbed** until Resend is wired
+
+| Tool | Input | Effect |
+|---|---|---|
+| `send_email` | `to[]`, `subject`, `body`, `contactId?`, `confirm: true` | Records the send intent as an audit activity on the contact (if provided). No email actually leaves the system until Resend is wired |
+| `send_quote` | `quoteId`, `confirm: true` | Transitions quote `draft → sent` + sets `sentAt`. Audits as `quote_sent` on the linked deal. No email actually delivered |
+
 ## Connecting from clients
 
 ### Claude.ai web
@@ -194,9 +219,12 @@ request can land on a different lambda — wire Upstash KV by setting
 
 ## What's NOT here (yet)
 
-- **High-stakes tools** (Phase D) — `send_quote`, `send_email`, `delete_*`.
-  These will use MCP elicitation to surface a confirmation prompt in the
-  Claude client before executing.
+- **Real email delivery** — `send_email` and `send_quote` are stubs until
+  Resend is wired (API key + DNS records on zarco.uk). When that lands,
+  the same tools just swap the stub block for real Resend calls.
+- **MCP elicitation** (`mcp/elicitation`) — we use the explicit `confirm: true`
+  parameter pattern instead since client support for elicitation is patchy.
+  Once it stabilises we'll switch the destructive/high-stakes tools to it.
 - **The composite `record_meeting(transcript)` tool** — dropped per the
   Granola Path B decision. Luke's Claude composes the narrow primitives
   (find_contact + log_activity + create_task) via his subscription
