@@ -1,9 +1,10 @@
 import Link from "next/link";
 import { LogOut, Menu } from "lucide-react";
 
+import { cn } from "@/lib/utils";
 import { createClient } from "@/lib/supabase/server";
 import { signOut } from "@/app/(auth)/actions";
-import { Button } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -39,11 +40,14 @@ export async function Topbar() {
     <header className="flex h-14 items-center justify-between border-b bg-background px-4 lg:px-6">
       <div className="flex items-center gap-2">
         <Sheet>
-          <SheetTrigger asChild>
-            <Button variant="ghost" size="icon" className="lg:hidden">
-              <Menu className="h-5 w-5" />
-              <span className="sr-only">Open nav</span>
-            </Button>
+          <SheetTrigger
+            className={cn(
+              buttonVariants({ variant: "ghost", size: "icon" }),
+              "lg:hidden",
+            )}
+          >
+            <Menu className="h-5 w-5" />
+            <span className="sr-only">Open nav</span>
           </SheetTrigger>
           <SheetContent side="left" className="w-60 p-0">
             <SheetHeader className="sr-only">
@@ -55,13 +59,16 @@ export async function Topbar() {
       </div>
 
       <DropdownMenu>
-        <DropdownMenuTrigger asChild>
-          <Button variant="ghost" className="h-9 gap-2 px-2">
-            <Avatar className="h-7 w-7">
-              <AvatarFallback className="text-xs">{getInitials(email)}</AvatarFallback>
-            </Avatar>
-            <span className="hidden text-sm sm:inline">{email}</span>
-          </Button>
+        <DropdownMenuTrigger
+          className={cn(
+            buttonVariants({ variant: "ghost" }),
+            "h-9 gap-2 px-2",
+          )}
+        >
+          <Avatar className="h-7 w-7">
+            <AvatarFallback className="text-xs">{getInitials(email)}</AvatarFallback>
+          </Avatar>
+          <span className="hidden text-sm sm:inline">{email}</span>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end" className="w-56">
           <DropdownMenuLabel>{email}</DropdownMenuLabel>

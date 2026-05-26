@@ -11,25 +11,12 @@ function Sheet({ ...props }: SheetPrimitive.Root.Props) {
   return <SheetPrimitive.Root data-slot="sheet" {...props} />
 }
 
-function SheetTrigger({
-  asChild,
-  children,
-  ...props
-}: SheetPrimitive.Trigger.Props & { asChild?: boolean }) {
-  if (asChild && React.isValidElement(children)) {
-    return (
-      <SheetPrimitive.Trigger
-        data-slot="sheet-trigger"
-        render={children as React.ReactElement}
-        {...props}
-      />
-    )
-  }
-  return (
-    <SheetPrimitive.Trigger data-slot="sheet-trigger" {...props}>
-      {children}
-    </SheetPrimitive.Trigger>
-  )
+// NOTE: `asChild` is not supported here. base-ui's `render` prop produces a
+// different element during SSR vs client hydration, causing a hydration error.
+// To style the trigger, pass className directly — typically via
+// `cn(buttonVariants({ variant, size }))`.
+function SheetTrigger({ ...props }: SheetPrimitive.Trigger.Props) {
+  return <SheetPrimitive.Trigger data-slot="sheet-trigger" {...props} />
 }
 
 function SheetClose({ ...props }: SheetPrimitive.Close.Props) {
