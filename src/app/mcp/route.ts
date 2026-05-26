@@ -1,61 +1,60 @@
-import { NextResponse, type NextRequest } from "next/server";
+import { createMcpHandler, withMcpAuth } from "mcp-handler";
+import type { AuthInfo } from "@modelcontextprotocol/sdk/server/auth/types.js";
 
-import { getBaseUrl } from "@/lib/oauth/config";
+import { MCP_SERVER_INFO, registerTools } from "@/lib/mcp/server";
 import { verifyBearerToken } from "@/lib/oauth/verify-token";
 
 /**
- * MCP endpoint stub.
+ * The Zarco CRM MCP endpoint.
  *
- * Phase A (this branch): proves OAuth end-to-end. Validates the bearer
- * token and returns a placeholder response that identifies the bound user.
- * No tools yet.
+ * Streamable HTTP transport, served at /mcp. mcp-handler defaults match our
+ * route path (basePath ""), and we disable the legacy SSE transport since the
+ * spec deprecated it in 2025-03-26.
  *
- * Phase B (next branch): wire up @modelcontextprotocol/sdk with the
- * Streamable HTTP transport and start exposing tools.
+ * Auth: every request must carry a Bearer access token issued by /oauth/token.
+ * withMcpAuth handles the 401 response with the WWW-Authenticate header per
+ * RFC 9728; on success it attaches AuthInfo to the request and propagates it
+ * into each tool's `extra.authInfo`.
  *
- * Per RFC 9728, on 401 we return WWW-Authenticate pointing at our
- * resource metadata so MCP clients can auto-discover the authorization
- * server.
+ * Note on session state: mcp-handler defaults to Redis (Upstash KV) for cross-
+ * invocation session storage. In dev (single Node process) the in-memory
+ * fallback is fine. For production on Vercel we'll wire REDIS_URL or KV_URL.
  */
+const handler = createMcpHandler(
+  (server) => {
+    registerTools(server);
+  },
+  { serverInfo: MCP_SERVER_INFO },
+  {
+    disableSse: true,
+    maxDuration: 60,
+    verboseLogs: process.env.NODE_ENV !== "production",
+  },
+);
 
-async function unauthorized(reason: string) {
-  const baseUrl = await getBaseUrl();
-  return NextResponse.json(
-    { error: "unauthorized", error_description: reason },
-    {
-      status: 401,
-      headers: {
-        "WWW-Authenticate": `Bearer resource_metadata="${baseUrl}/.well-known/oauth-protected-resource"`,
-        "Cache-Control": "no-store",
-      },
-    },
-  );
+async function verifyToken(
+  _request: Request,
+  bearerToken?: string,
+): Promise<AuthInfo | undefined> {
+  if (!bearerToken) return undefined;
+  const verified = await verifyBearerToken(`Bearer ${bearerToken}`);
+  if (!verified) return undefined;
+  return {
+    token: bearerToken,
+    clientId: verified.clientId,
+    scopes: [verified.scope],
+    expiresAt: Math.floor(verified.expiresAt.getTime() / 1000),
+    extra: { userId: verified.userId },
+  };
 }
 
-async function handle(request: NextRequest) {
-  const token = await verifyBearerToken(request.headers.get("authorization"));
-  if (!token) return unauthorized("Missing or invalid access token");
+const authedHandler = withMcpAuth(handler, verifyToken, {
+  required: true,
+  requiredScopes: ["mcp"],
+});
 
-  // Placeholder until phase B drops in the MCP SDK.
-  return NextResponse.json(
-    {
-      status: "auth_ok",
-      message: "OAuth verified. Tool surface ships in phase B.",
-      bound_to: {
-        user_id: token.userId,
-        client_id: token.clientId,
-        scope: token.scope,
-        expires_at: token.expiresAt.toISOString(),
-      },
-    },
-    { headers: { "Cache-Control": "no-store" } },
-  );
-}
-
-export async function GET(request: NextRequest) {
-  return handle(request);
-}
-
-export async function POST(request: NextRequest) {
-  return handle(request);
-}
+export {
+  authedHandler as GET,
+  authedHandler as POST,
+  authedHandler as DELETE,
+};
