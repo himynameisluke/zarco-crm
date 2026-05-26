@@ -27,6 +27,7 @@ alter table public.quotes           enable row level security;
 alter table public.quote_line_items enable row level security;
 alter table public.email_campaigns  enable row level security;
 alter table public.email_sends      enable row level security;
+alter table public.inbox_items      enable row level security;
 
 -- =============================================================================
 -- Phase 1: any authenticated user can read/write everything
@@ -62,6 +63,9 @@ create policy "authenticated_all" on public.email_campaigns
 create policy "authenticated_all" on public.email_sends
   for all to authenticated using (true) with check (true);
 
+create policy "authenticated_all" on public.inbox_items
+  for all to authenticated using (true) with check (true);
+
 -- =============================================================================
 -- Public quote access via public_token (no auth required)
 -- =============================================================================
@@ -73,3 +77,16 @@ create policy "authenticated_all" on public.email_sends
 -- quote when current_setting('request.jwt.claim.quote_token', true) matches
 -- the row's public_token. Implementing this requires the public quote page to
 -- set the header on each Supabase request.
+
+-- =============================================================================
+-- OAuth tables: RLS on, no policies (Drizzle-only access)
+-- =============================================================================
+-- These tables hold sensitive material: client secrets, authorization codes,
+-- and access token hashes. They must NEVER be reachable via the public Supabase
+-- API (anon or authenticated key). RLS with zero policies means PostgREST
+-- returns no rows. Our server-side Drizzle connection uses the postgres role
+-- which bypasses RLS, so app code is unaffected.
+
+alter table public.oauth_clients              enable row level security;
+alter table public.oauth_authorization_codes  enable row level security;
+alter table public.oauth_access_tokens        enable row level security;

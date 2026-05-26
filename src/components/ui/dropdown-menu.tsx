@@ -14,25 +14,11 @@ function DropdownMenuPortal({ ...props }: MenuPrimitive.Portal.Props) {
   return <MenuPrimitive.Portal data-slot="dropdown-menu-portal" {...props} />
 }
 
-function DropdownMenuTrigger({
-  asChild,
-  children,
-  ...props
-}: MenuPrimitive.Trigger.Props & { asChild?: boolean }) {
-  if (asChild && React.isValidElement(children)) {
-    return (
-      <MenuPrimitive.Trigger
-        data-slot="dropdown-menu-trigger"
-        render={children as React.ReactElement}
-        {...props}
-      />
-    )
-  }
-  return (
-    <MenuPrimitive.Trigger data-slot="dropdown-menu-trigger" {...props}>
-      {children}
-    </MenuPrimitive.Trigger>
-  )
+// NOTE: `asChild` is not supported. base-ui's `render` prop hydrates
+// differently than SSR (see SheetTrigger note). Style via className using
+// `cn(buttonVariants({ variant, size }))` instead.
+function DropdownMenuTrigger({ ...props }: MenuPrimitive.Trigger.Props) {
+  return <MenuPrimitive.Trigger data-slot="dropdown-menu-trigger" {...props} />
 }
 
 function DropdownMenuContent({

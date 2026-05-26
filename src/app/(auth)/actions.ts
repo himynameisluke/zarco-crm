@@ -9,11 +9,13 @@ import { createClient } from "@/lib/supabase/server";
 
 const magicLinkSchema = z.object({
   email: z.string().email("Enter a valid email"),
+  next: z.string().startsWith("/").max(2000).optional(),
 });
 
 export async function sendMagicLink(_: unknown, formData: FormData) {
   const parsed = magicLinkSchema.safeParse({
     email: formData.get("email"),
+    next: formData.get("next") || undefined,
   });
 
   if (!parsed.success) {
@@ -24,10 +26,13 @@ export async function sendMagicLink(_: unknown, formData: FormData) {
   const headersList = await headers();
   const origin = headersList.get("origin") ?? "http://localhost:3000";
 
+  const callbackUrl = new URL(`${origin}/auth/callback`);
+  if (parsed.data.next) callbackUrl.searchParams.set("next", parsed.data.next);
+
   const { error } = await supabase.auth.signInWithOtp({
     email: parsed.data.email,
     options: {
-      emailRedirectTo: `${origin}/auth/callback`,
+      emailRedirectTo: callbackUrl.toString(),
     },
   });
 

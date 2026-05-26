@@ -1,85 +1,135 @@
-import Link from "next/link";
-import { LogOut, Menu } from "lucide-react";
+import { Bell, ChevronRight } from "lucide-react";
+import type { ReactNode } from "react";
 
 import { createClient } from "@/lib/supabase/server";
-import { signOut } from "@/app/(auth)/actions";
-import { Button } from "@/components/ui/button";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import {
-  Sheet,
-  SheetContent,
-  SheetTrigger,
-  SheetTitle,
-  SheetHeader,
-} from "@/components/ui/sheet";
 import { Sidebar } from "@/components/nav/sidebar";
+import { MobileSidebarTrigger } from "@/components/nav/mobile-sidebar";
+import { SparkleTrigger } from "@/components/nav/sparkle-trigger";
 
-function getInitials(email: string) {
-  const name = email.split("@")[0];
-  return name.slice(0, 2).toUpperCase();
-}
+export type Crumb = {
+  label: string;
+  href?: string;
+  icon?: typeof ChevronRight;
+};
 
-export async function Topbar() {
+export type TopbarTab = {
+  id: string;
+  label: string;
+  href?: string;
+  active?: boolean;
+  icon?: typeof ChevronRight;
+};
+
+type TopbarProps = {
+  crumbs?: Crumb[];
+  tabs?: TopbarTab[];
+  actions?: ReactNode;
+};
+
+export async function Topbar({ crumbs = [], tabs, actions }: TopbarProps) {
   const supabase = await createClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();
-
-  const email = user?.email ?? "guest";
+  const userEmail = user?.email ?? undefined;
 
   return (
-    <header className="flex h-14 items-center justify-between border-b bg-background px-4 lg:px-6">
-      <div className="flex items-center gap-2">
-        <Sheet>
-          <SheetTrigger asChild>
-            <Button variant="ghost" size="icon" className="lg:hidden">
-              <Menu className="h-5 w-5" />
-              <span className="sr-only">Open nav</span>
-            </Button>
-          </SheetTrigger>
-          <SheetContent side="left" className="w-60 p-0">
-            <SheetHeader className="sr-only">
-              <SheetTitle>Navigation</SheetTitle>
-            </SheetHeader>
-            <Sidebar />
-          </SheetContent>
-        </Sheet>
+    <header
+      style={{
+        height: 48,
+        flexShrink: 0,
+        borderBottom: "1px solid var(--hairline)",
+        background: "rgba(14, 26, 46, 0.7)",
+        backdropFilter: "blur(8px)",
+        display: "flex",
+        alignItems: "center",
+        padding: "0 16px",
+        gap: 14,
+      }}
+    >
+      <MobileSidebarTrigger>
+        <Sidebar userEmail={userEmail} />
+      </MobileSidebarTrigger>
+
+      {/* Breadcrumbs */}
+      <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 13 }}>
+        {crumbs.map((c, i) => {
+          const Icon = c.icon;
+          const isLast = i === crumbs.length - 1;
+          return (
+            <div
+              key={`${c.label}-${i}`}
+              style={{ display: "inline-flex", alignItems: "center", gap: 6 }}
+            >
+              {i > 0 ? <ChevronRight size={12} color="var(--ink-4)" /> : null}
+              <span
+                style={{
+                  color: isLast ? "var(--ink)" : "var(--ink-3)",
+                  fontWeight: isLast ? 500 : 400,
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: 6,
+                }}
+              >
+                {Icon ? <Icon size={13} color="var(--ink-3)" /> : null}
+                {c.label}
+              </span>
+            </div>
+          );
+        })}
       </div>
 
-      <DropdownMenu>
-        <DropdownMenuTrigger asChild>
-          <Button variant="ghost" className="h-9 gap-2 px-2">
-            <Avatar className="h-7 w-7">
-              <AvatarFallback className="text-xs">{getInitials(email)}</AvatarFallback>
-            </Avatar>
-            <span className="hidden text-sm sm:inline">{email}</span>
-          </Button>
-        </DropdownMenuTrigger>
-        <DropdownMenuContent align="end" className="w-56">
-          <DropdownMenuLabel>{email}</DropdownMenuLabel>
-          <DropdownMenuSeparator />
-          <DropdownMenuItem asChild>
-            <Link href="/settings">Settings</Link>
-          </DropdownMenuItem>
-          <DropdownMenuSeparator />
-          <form action={signOut}>
-            <DropdownMenuItem asChild>
-              <button type="submit" className="flex w-full items-center gap-2">
-                <LogOut className="h-4 w-4" />
-                Sign out
+      {/* Optional tabs (e.g. kanban / list toggle) */}
+      {tabs ? (
+        <div
+          style={{
+            marginLeft: 14,
+            display: "flex",
+            alignItems: "center",
+            gap: 2,
+            background: "var(--surface-2)",
+            border: "1px solid var(--hairline)",
+            borderRadius: 7,
+            padding: 2,
+            height: 28,
+          }}
+        >
+          {tabs.map((t) => {
+            const Icon = t.icon;
+            return (
+              <button
+                key={t.id}
+                type="button"
+                style={{
+                  height: 22,
+                  padding: "0 10px",
+                  borderRadius: 5,
+                  background: t.active ? "var(--surface-4)" : "transparent",
+                  color: t.active ? "var(--ink)" : "var(--ink-3)",
+                  border: "none",
+                  fontWeight: t.active ? 500 : 400,
+                  fontSize: 12,
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: 6,
+                  cursor: "pointer",
+                }}
+              >
+                {Icon ? <Icon size={12} /> : null}
+                {t.label}
               </button>
-            </DropdownMenuItem>
-          </form>
-        </DropdownMenuContent>
-      </DropdownMenu>
+            );
+          })}
+        </div>
+      ) : null}
+
+      <div style={{ flex: 1 }} />
+
+      {actions}
+      <button type="button" className="btn btn-ghost btn-icon" title="Notifications">
+        <Bell size={15} />
+      </button>
+      <SparkleTrigger />
     </header>
   );
 }

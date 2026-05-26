@@ -58,6 +58,7 @@ export const activitySource = pgEnum("activity_source", [
   "granola",
   "email_sync",
   "system",
+  "mcp",
 ]);
 
 export const subjectType = pgEnum("subject_type", [
@@ -289,6 +290,124 @@ export const emailCampaigns = pgTable("email_campaigns", {
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 });
+
+// =============================================================================
+// Inbox — pre-activity items needing triage
+// =============================================================================
+// Items land here from external sources (Granola transcripts not yet linked
+// to a contact, MCP suggestions awaiting approval, Resend bounce events,
+// later: raw Outlook messages). Triage converts an inbox_item into a real
+// activity attached to a contact / org / deal / project.
+
+export const inboxItemType = pgEnum("inbox_item_type", [
+  "transcript",
+  "email",
+  "mcp_suggestion",
+  "bounce",
+  "other",
+]);
+
+export const inboxItemSource = pgEnum("inbox_item_source", [
+  "granola",
+  "outlook",
+  "resend",
+  "mcp",
+  "system",
+]);
+
+export const inboxItemStatus = pgEnum("inbox_item_status", [
+  "pending",
+  "processed",
+  "dismissed",
+]);
+
+export const inboxItems = pgTable(
+  "inbox_items",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    type: inboxItemType("type").notNull(),
+    source: inboxItemSource("source").notNull(),
+    title: text("title").notNull(),
+    body: text("body"),
+    metadata: jsonb("metadata").notNull().default({}),
+    status: inboxItemStatus("status").notNull().default("pending"),
+    // Set when triaged → activity. Lets us audit where an item ended up.
+    processedIntoActivityId: uuid("processed_into_activity_id"),
+    receivedAt: timestamp("received_at", { withTimezone: true }).notNull().defaultNow(),
+    processedAt: timestamp("processed_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    index("inbox_items_status_idx").on(t.status),
+    index("inbox_items_received_idx").on(t.receivedAt),
+  ],
+);
+
+// =============================================================================
+// OAuth 2.1 + MCP Authorization
+// =============================================================================
+// Implements the server side of MCP's OAuth requirements (RFC 7591 dynamic
+// client registration, RFC 7636 PKCE, RFC 8414 + RFC 9728 metadata).
+// We act as both the authorization server and the resource server.
+
+export const oauthClients = pgTable("oauth_clients", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  clientSecretHash: text("client_secret_hash"),
+  clientName: text("client_name").notNull(),
+  redirectUris: jsonb("redirect_uris").$type<string[]>().notNull(),
+  grantTypes: jsonb("grant_types")
+    .$type<string[]>()
+    .notNull()
+    .default(["authorization_code"]),
+  tokenEndpointAuthMethod: text("token_endpoint_auth_method").notNull().default("none"),
+  registeredAt: timestamp("registered_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+});
+
+export const oauthAuthorizationCodes = pgTable(
+  "oauth_authorization_codes",
+  {
+    code: text("code").primaryKey(),
+    clientId: uuid("client_id")
+      .notNull()
+      .references(() => oauthClients.id, { onDelete: "cascade" }),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => authUsers.id, { onDelete: "cascade" }),
+    redirectUri: text("redirect_uri").notNull(),
+    codeChallenge: text("code_challenge").notNull(),
+    codeChallengeMethod: text("code_challenge_method").notNull(),
+    scope: text("scope").notNull().default("mcp"),
+    resource: text("resource"),
+    expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+    consumedAt: timestamp("consumed_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index("oauth_codes_expires_idx").on(t.expiresAt)],
+);
+
+export const oauthAccessTokens = pgTable(
+  "oauth_access_tokens",
+  {
+    tokenHash: text("token_hash").primaryKey(),
+    clientId: uuid("client_id")
+      .notNull()
+      .references(() => oauthClients.id, { onDelete: "cascade" }),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => authUsers.id, { onDelete: "cascade" }),
+    scope: text("scope").notNull().default("mcp"),
+    expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    lastUsedAt: timestamp("last_used_at", { withTimezone: true }),
+    revokedAt: timestamp("revoked_at", { withTimezone: true }),
+  },
+  (t) => [
+    index("oauth_tokens_user_idx").on(t.userId),
+    index("oauth_tokens_expires_idx").on(t.expiresAt),
+  ],
+);
 
 export const emailSends = pgTable(
   "email_sends",

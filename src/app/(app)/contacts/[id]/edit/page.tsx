@@ -1,10 +1,11 @@
 import { notFound } from "next/navigation";
 import { eq } from "drizzle-orm";
+import { Users } from "lucide-react";
 
 import { db } from "@/lib/db";
 import { contacts } from "@/lib/db/schema";
 import { requireUser } from "@/lib/auth";
-import { PageHeader } from "@/components/page-header";
+import { Topbar } from "@/components/nav/topbar";
 import { ContactForm } from "@/components/contacts/contact-form";
 import { updateContact } from "../../actions";
 
@@ -25,16 +26,24 @@ export default async function EditContactPage({
   const fullName = [contact.firstName, contact.lastName].filter(Boolean).join(" ") || "contact";
 
   return (
-    <div>
-      <PageHeader title={`Edit ${fullName}`} />
-      <div className="mx-auto max-w-3xl p-4 lg:p-8">
-        <ContactForm
-          action={updateContact.bind(null, id)}
-          defaultValues={contact}
-          submitLabel="Save changes"
-          cancelHref={`/contacts/${id}`}
-        />
-      </div>
-    </div>
+    <>
+      <Topbar
+        crumbs={[
+          { icon: Users, label: "Contacts" },
+          { label: fullName, href: `/contacts/${id}` },
+          { label: "Edit" },
+        ]}
+      />
+      <main className="screen flex-1 overflow-auto" style={{ minWidth: 0 }}>
+        <div className="mx-auto max-w-3xl p-4 lg:p-8">
+          <ContactForm
+            action={updateContact.bind(null, id)}
+            defaultValues={contact}
+            submitLabel="Save changes"
+            cancelHref={`/contacts/${id}`}
+          />
+        </div>
+      </main>
+    </>
   );
 }

@@ -1,26 +1,301 @@
 @import "tailwindcss";
 
+/* ─────────────────────────────────────────────────────────────────────────
+ * Zarco Design System tokens — deep-navy refresh
+ * Adapted from: claude.ai/design handoff (May 2026)
+ * ───────────────────────────────────────────────────────────────────────── */
+
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  /* Surfaces — deep navy, layered */
+  --bg:       #0E1A2E;
+  --bg-2:     #152238;
+  --bg-3:     #1C2A42;
+  --panel:    #11192B;
+  --panel-2:  #0C1424;
+
+  /* Lines / hairlines */
+  --line:         rgba(255, 255, 255, 0.10);
+  --line-strong:  rgba(255, 255, 255, 0.18);
+  --hairline:     rgba(255, 255, 255, 0.07);
+  --hairline-2:   rgba(255, 255, 255, 0.12);
+
+  /* Glass surface lifts */
+  --surface-1: rgba(255, 255, 255, 0.015);
+  --surface-2: rgba(255, 255, 255, 0.025);
+  --surface-3: rgba(255, 255, 255, 0.04);
+  --surface-4: rgba(255, 255, 255, 0.06);
+  --hover:        rgba(255, 255, 255, 0.035);
+  --hover-strong: rgba(255, 255, 255, 0.06);
+
+  /* Ink — warm off-white at four opacities */
+  --ink:    #F5F1EA;
+  --ink-2:  rgba(245, 241, 234, 0.85);
+  --ink-3:  rgba(245, 241, 234, 0.60);
+  --ink-4:  rgba(245, 241, 234, 0.38);
+
+  /* Brand accents */
+  --amber:        oklch(0.78 0.20 145);
+  --amber-soft:   oklch(0.78 0.20 145 / 0.16);
+  --accent-tint:  oklch(0.78 0.20 145 / 0.06);
+  --cyan:         oklch(0.82 0.08 220);
+
+  /* Semantic status (oklch family, sits next to amber comfortably) */
+  --ok:     oklch(0.78 0.18 145);
+  --warn:   oklch(0.82 0.14 70);
+  --danger: oklch(0.70 0.20 25);
+  --info:   oklch(0.78 0.10 220);
+
+  /* Font stacks — Inter for UI, Space Grotesk for display, JetBrains Mono for IDs/data */
+  --ui:      var(--font-inter), system-ui, -apple-system, sans-serif;
+  --display: var(--font-space-grotesk), system-ui, sans-serif;
+  --code:    var(--font-jetbrains-mono), ui-monospace, monospace;
+
+  /* Product rhythm (tighter than marketing-site spacing) */
+  --row-h:    36px;
+  --row-h-sm: 30px;
+  --ctrl-h:   30px;
+
+  /* Radii */
+  --r-sm:  6px;
+  --r-md:  10px;
+  --r-lg:  14px;
+  --r-xl:  18px;
+  --r-2xl: 22px;
+
+  /* ── Map shadcn-style semantic names onto Zarco tokens ──
+   * Existing pages use bg-background, text-foreground, bg-card etc. via
+   * Tailwind classes. Pointing those classes at Zarco tokens means every
+   * page inherits the new look without per-file edits. */
+  --background: var(--bg);
+  --foreground: var(--ink);
+  --card: var(--panel);
+  --card-foreground: var(--ink);
+  --popover: var(--bg-2);
+  --popover-foreground: var(--ink);
+  --primary: var(--amber);
+  --primary-foreground: #0B1220;
+  --secondary: var(--surface-3);
+  --secondary-foreground: var(--ink-2);
+  --muted: var(--surface-2);
+  --muted-foreground: var(--ink-3);
+  --accent: var(--hover);
+  --accent-foreground: var(--ink);
+  --destructive: var(--danger);
+  --destructive-foreground: var(--ink);
+  --border: var(--hairline);
+  --input: var(--hairline);
+  --ring: var(--amber);
 }
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --font-sans: var(--ui);
+  --font-mono: var(--code);
+  --font-display: var(--display);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
-}
-
+html,
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  background: var(--bg);
+  color: var(--ink);
+  font-family: var(--ui);
+  font-feature-settings: "ss01", "cv11";
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
 }
+
+::selection {
+  background: var(--amber);
+  color: var(--bg);
+}
+
+/* ─────────────────────────────────────────────────────────────────────────
+ * Product class recipes — faithful port of design/app/styles.css
+ * Use directly: <button className="btn">, <span className="chip --ok">…
+ * ───────────────────────────────────────────────────────────────────────── */
+
+/* Typography */
+.t-display { font-family: var(--display); font-weight: 500; letter-spacing: -0.02em; }
+.t-num     { font-family: var(--display); font-weight: 500; font-variant-numeric: tabular-nums; letter-spacing: -0.02em; }
+.t-mono    { font-family: var(--code); font-feature-settings: "ss02"; }
+.t-eyebrow { font-family: var(--code); font-size: 10.5px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--ink-3); }
+.t-label   { font-family: var(--ui); font-size: 11.5px; font-weight: 500; color: var(--ink-3); letter-spacing: 0.01em; }
+.t-muted   { color: var(--ink-3); }
+.t-faint   { color: var(--ink-4); }
+
+/* Buttons */
+.btn {
+  display: inline-flex; align-items: center; gap: 6px;
+  height: var(--ctrl-h); padding: 0 10px;
+  font-size: 12.5px; font-weight: 500;
+  border-radius: 7px;
+  background: var(--surface-3);
+  border: 1px solid var(--hairline);
+  color: var(--ink-2);
+  transition: background .15s, border-color .15s, color .15s, transform .15s;
+  cursor: pointer;
+}
+.btn:hover { background: var(--surface-4); border-color: var(--hairline-2); color: var(--ink); }
+.btn-primary {
+  background: var(--amber);
+  color: #0B1220;
+  border-color: transparent;
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.5) inset,
+    0 0 0 1px rgba(0, 0, 0, 0.1),
+    0 6px 18px -8px var(--amber-soft);
+}
+.btn-primary:hover { background: oklch(0.83 0.20 145); color: #0B1220; }
+.btn-ghost { background: transparent; border-color: transparent; color: var(--ink-3); }
+.btn-ghost:hover { background: var(--hover); color: var(--ink); border-color: transparent; }
+.btn-icon { width: var(--ctrl-h); padding: 0; justify-content: center; }
+.btn-sm   { height: 26px; padding: 0 8px; font-size: 12px; border-radius: 6px; }
+
+/* Inputs */
+.input {
+  display: inline-flex; align-items: center; gap: 8px;
+  height: var(--ctrl-h); padding: 0 10px;
+  background: var(--surface-2);
+  border: 1px solid var(--hairline);
+  border-radius: 7px;
+  color: var(--ink-2);
+  font-size: 13px;
+  width: 100%;
+  transition: border-color .15s, background .15s, box-shadow .15s;
+}
+.input:focus-within { border-color: rgba(255, 255, 255, 0.25); background: var(--surface-3); }
+.input input { background: transparent; border: 0; outline: 0; flex: 1; min-width: 0; color: inherit; font: inherit; }
+.input input::placeholder { color: var(--ink-4); }
+
+/* Keyboard chip */
+.kbd {
+  font-family: var(--code); font-size: 10.5px;
+  padding: 1px 5px 2px;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid var(--hairline);
+  border-bottom-width: 2px;
+  border-radius: 4px;
+  color: var(--ink-3);
+  letter-spacing: 0.02em;
+}
+
+/* Chips / pills */
+.chip {
+  display: inline-flex; align-items: center; gap: 6px;
+  height: 22px; padding: 0 8px;
+  font-size: 11.5px; font-weight: 500;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid var(--hairline);
+  color: var(--ink-2);
+  border-radius: 5px;
+}
+.chip.\--ok     { background: oklch(0.78 0.18 145 / 0.10); color: oklch(0.85 0.18 145); border-color: oklch(0.78 0.18 145 / 0.25); }
+.chip.\--warn   { background: oklch(0.82 0.14 70 / 0.10); color: oklch(0.88 0.14 70); border-color: oklch(0.82 0.14 70 / 0.25); }
+.chip.\--danger { background: oklch(0.70 0.20 25 / 0.10); color: oklch(0.80 0.20 25); border-color: oklch(0.70 0.20 25 / 0.25); }
+.chip.\--info   { background: oklch(0.78 0.10 220 / 0.10); color: oklch(0.86 0.10 220); border-color: oklch(0.78 0.10 220 / 0.25); }
+.chip.\--mute   { color: var(--ink-3); }
+.chip.\--solid  { background: var(--amber); color: #0B1220; border-color: transparent; }
+
+/* Indicator dots */
+.dot { width: 6px; height: 6px; border-radius: 50%; background: var(--ink-4); flex-shrink: 0; display: inline-block; }
+.dot.\--ok     { background: var(--ok); box-shadow: 0 0 8px oklch(0.78 0.18 145 / 0.5); }
+.dot.\--warn   { background: var(--warn); }
+.dot.\--danger { background: var(--danger); }
+.dot.\--info   { background: var(--info); }
+.dot.\--amber  { background: var(--amber); box-shadow: 0 0 8px var(--amber-soft); }
+
+/* Avatars */
+.zk-avatar {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 22px; height: 22px; border-radius: 50%;
+  background: var(--bg-3);
+  color: var(--ink);
+  font-size: 10.5px; font-weight: 600;
+  border: 1px solid var(--hairline);
+  flex-shrink: 0;
+}
+.zk-avatar-lg { width: 36px; height: 36px; font-size: 13px; }
+.zk-avatar-xl { width: 56px; height: 56px; font-size: 18px; }
+
+/* Sidebar nav item */
+.nav-item {
+  display: flex; align-items: center; gap: 9px;
+  padding: 0 10px; height: 28px;
+  border-radius: 6px;
+  color: var(--ink-3);
+  font-size: 13px; font-weight: 450;
+  cursor: pointer;
+  transition: background .12s, color .12s;
+}
+.nav-item:hover { background: var(--hover); color: var(--ink); }
+.nav-item.\--active { background: var(--hover-strong); color: var(--ink); }
+.nav-item.\--active .ni-ico { color: var(--amber); }
+.nav-item .ni-ico { color: var(--ink-3); flex-shrink: 0; }
+.nav-item .ni-count { margin-left: auto; font-family: var(--code); font-size: 10.5px; color: var(--ink-4); }
+
+/* Tables */
+.tbl { width: 100%; border-collapse: collapse; }
+.tbl thead th {
+  text-align: left;
+  font-family: var(--ui); font-weight: 500; font-size: 11.5px;
+  color: var(--ink-3); letter-spacing: 0.01em;
+  padding: 0 12px;
+  height: 30px;
+  border-bottom: 1px solid var(--hairline);
+  background: rgba(255, 255, 255, 0.012);
+  position: sticky; top: 0;
+}
+.tbl tbody td {
+  padding: 0 12px;
+  height: var(--row-h);
+  font-size: 13px;
+  border-bottom: 1px solid var(--hairline);
+  color: var(--ink-2);
+  vertical-align: middle;
+  white-space: nowrap;
+}
+.tbl tbody tr:hover td { background: var(--hover); color: var(--ink); }
+.tbl tbody tr.\--sel td { background: var(--accent-tint); }
+
+/* Screen wrapper — grain texture overlay (signature design touch) */
+.screen {
+  position: relative;
+  background: var(--bg);
+  color: var(--ink);
+  overflow: hidden;
+}
+.screen::before {
+  content: "";
+  position: absolute; inset: 0;
+  background-image: url("/grain.svg");
+  background-size: 200px;
+  opacity: 0.18;
+  mix-blend-mode: overlay;
+  pointer-events: none;
+  z-index: 1;
+}
+.screen > * { position: relative; z-index: 2; }
+
+/* Scrollbar — subtle, matches dark UI */
+::-webkit-scrollbar { width: 8px; height: 8px; }
+::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.08); border-radius: 999px; }
+::-webkit-scrollbar-thumb:hover { background: rgba(255, 255, 255, 0.15); }
+::-webkit-scrollbar-track { background: transparent; }

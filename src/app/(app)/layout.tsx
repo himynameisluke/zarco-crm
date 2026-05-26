@@ -1,9 +1,12 @@
 import { redirect } from "next/navigation";
+import { eq, ne, sql } from "drizzle-orm";
 
+import { db } from "@/lib/db";
+import { inboxItems, tasks } from "@/lib/db/schema";
 import { createClient } from "@/lib/supabase/server";
-import { Sidebar } from "@/components/nav/sidebar";
-import { Topbar } from "@/components/nav/topbar";
+import { Sidebar, type SidebarCounts } from "@/components/nav/sidebar";
 import { Toaster } from "@/components/ui/sonner";
+import { CommandPaletteLoader } from "@/components/command-palette/loader";
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   const supabase = await createClient();
@@ -15,15 +18,36 @@ export default async function AppLayout({ children }: { children: React.ReactNod
     redirect("/login");
   }
 
+  const userEmail = user.email ?? "unknown@zarco.uk";
+
+  const [inboxCount, openTaskCount] = await Promise.all([
+    db
+      .select({ n: sql<number>`count(*)::int` })
+      .from(inboxItems)
+      .where(eq(inboxItems.status, "pending"))
+      .then((r) => r[0]?.n ?? 0),
+    db
+      .select({ n: sql<number>`count(*)::int` })
+      .from(tasks)
+      .where(ne(tasks.status, "done"))
+      .then((r) => r[0]?.n ?? 0),
+  ]);
+
+  const counts: SidebarCounts = {
+    inbox: inboxCount,
+    tasks: openTaskCount,
+  };
+
   return (
-    <div className="flex h-screen bg-background">
-      <div className="hidden lg:block">
-        <Sidebar />
+    <div
+      className="crm flex h-screen"
+      style={{ background: "var(--bg)", color: "var(--ink)" }}
+    >
+      <div className="hidden lg:block h-full">
+        <Sidebar userEmail={userEmail} counts={counts} />
       </div>
-      <div className="flex flex-1 flex-col overflow-hidden">
-        <Topbar />
-        <main className="flex-1 overflow-y-auto">{children}</main>
-      </div>
+      <div className="flex flex-1 flex-col overflow-hidden">{children}</div>
+      <CommandPaletteLoader />
       <Toaster />
     </div>
   );
