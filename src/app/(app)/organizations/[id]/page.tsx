@@ -2,7 +2,6 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { and, desc, eq } from "drizzle-orm";
 import {
-  ArrowLeft,
   Briefcase,
   Building2,
   Globe,
@@ -23,6 +22,7 @@ import {
 } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { Badge } from "@/components/ui/badge";
+import { Topbar } from "@/components/nav/topbar";
 import { PageHeader } from "@/components/page-header";
 import { EmptyState } from "@/components/empty-state";
 import { DeleteOrganizationButton } from "@/components/organizations/delete-organization-button";
@@ -109,18 +109,14 @@ export default async function OrganizationDetailPage({
   ]);
 
   return (
-    <div>
-      <PageHeader
-        title={org.name}
-        description={org.industry ?? undefined}
-        action={
-          <div className="flex items-center gap-2">
-            <Button variant="ghost" size="sm" asChild>
-              <Link href="/organizations">
-                <ArrowLeft className="h-4 w-4" />
-                Back
-              </Link>
-            </Button>
+    <>
+      <Topbar
+        crumbs={[
+          { icon: Building2, label: "Organizations" },
+          { label: org.name },
+        ]}
+        actions={
+          <>
             <Button variant="outline" size="sm" asChild>
               <Link href={`/organizations/${org.id}/edit`}>
                 <Pencil className="h-4 w-4" />
@@ -128,9 +124,14 @@ export default async function OrganizationDetailPage({
               </Link>
             </Button>
             <DeleteOrganizationButton organizationId={org.id} organizationName={org.name} />
-          </div>
+          </>
         }
       />
+      <main className="screen flex-1 overflow-auto" style={{ minWidth: 0 }}>
+        <PageHeader
+          title={org.name}
+          description={org.industry ?? undefined}
+        />
 
       <div className="grid gap-6 p-4 lg:grid-cols-3 lg:p-8">
         <Card className="lg:col-span-1">
@@ -259,6 +260,7 @@ export default async function OrganizationDetailPage({
           </Card>
         </div>
       </div>
-    </div>
+      </main>
+    </>
   );
 }

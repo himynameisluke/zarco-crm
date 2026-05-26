@@ -1,7 +1,8 @@
 import Link from "next/link";
+import { Calendar, Flame, MoreHorizontal, Plus } from "lucide-react";
 
-import { cn } from "@/lib/utils";
-import { Badge } from "@/components/ui/badge";
+import { colorFromString } from "@/lib/colors";
+import { daysSince, formatDateShort, formatMoney, getInitials } from "@/lib/format";
 import {
   DEAL_STAGES,
   DEAL_STAGE_LABELS,
@@ -16,95 +17,294 @@ type Deal = {
   valuePence: number | null;
   currency: string;
   closeDate: string | null;
+  updatedAt: Date;
   organizationName: string | null;
+  primaryContactFirstName: string | null;
+  primaryContactLastName: string | null;
 };
 
-function formatMoney(pence: number | null, currency: string) {
-  if (pence == null) return null;
-  return new Intl.NumberFormat("en-GB", {
-    style: "currency",
-    currency,
-    maximumFractionDigits: 0,
-  }).format(pence / 100);
-}
-
-function stageTotal(deals: Deal[]) {
-  return deals.reduce((sum, d) => sum + (d.valuePence ?? 0), 0);
-}
-
-const STAGE_TINTS: Record<DealStage, string> = {
-  lead: "bg-slate-50 dark:bg-slate-900/40",
-  qualified: "bg-blue-50 dark:bg-blue-950/30",
-  proposal: "bg-amber-50 dark:bg-amber-950/30",
-  negotiation: "bg-purple-50 dark:bg-purple-950/30",
-  won: "bg-emerald-50 dark:bg-emerald-950/30",
-  lost: "bg-rose-50 dark:bg-rose-950/30",
+const STAGE_ACCENT: Record<DealStage, string> = {
+  lead: "rgba(245,241,234,0.40)",
+  qualified: "oklch(0.78 0.10 220)",
+  proposal: "oklch(0.78 0.20 145)",
+  negotiation: "oklch(0.82 0.14 70)",
+  won: "oklch(0.78 0.18 145)",
+  lost: "oklch(0.70 0.20 25)",
 };
 
-export function KanbanBoard({ deals }: { deals: Deal[] }) {
-  const grouped = DEAL_STAGES.map((stage) => ({
-    stage,
-    items: deals.filter((d) => d.stage === stage),
-  }));
+function daysChipStyle(days: number) {
+  if (days >= 14) {
+    return {
+      color: "oklch(0.78 0.20 25)",
+      background: "oklch(0.70 0.20 25 / 0.10)",
+      border: "1px solid oklch(0.70 0.20 25 / 0.25)",
+    };
+  }
+  if (days >= 7) {
+    return {
+      color: "oklch(0.86 0.14 70)",
+      background: "oklch(0.82 0.14 70 / 0.10)",
+      border: "1px solid oklch(0.82 0.14 70 / 0.25)",
+    };
+  }
+  return {
+    color: "var(--ink-3)",
+    background: "rgba(255,255,255,0.04)",
+    border: "1px solid var(--hairline)",
+  };
+}
+
+function DealCard({ deal }: { deal: Deal }) {
+  const days = daysSince(deal.updatedAt) ?? 0;
+  const chip = daysChipStyle(days);
+  const contactInitials = getInitials(
+    deal.primaryContactFirstName,
+    deal.primaryContactLastName,
+  );
+  const contactColor = colorFromString(
+    `${deal.primaryContactFirstName ?? ""}${deal.primaryContactLastName ?? ""}`,
+  );
+  const isHot = deal.stage === "negotiation" && days >= 7;
+  const isWon = deal.stage === "won";
+  const closeDisplay = isWon
+    ? `Won · ${formatDateShort(deal.updatedAt)}`
+    : deal.closeDate
+      ? formatDateShort(deal.closeDate)
+      : "—";
+  const idSuffix = deal.id.slice(-4).toUpperCase();
 
   return (
-    <div className="grid auto-rows-min grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
-      {grouped.map(({ stage, items }) => {
-        const total = stageTotal(items);
-        const currency = items[0]?.currency ?? "GBP";
-        return (
-          <div
-            key={stage}
-            className={cn(
-              "flex flex-col rounded-lg border",
-              STAGE_TINTS[stage],
-            )}
+    <Link
+      href={`/deals/${deal.id}`}
+      style={{
+        background: "var(--panel)",
+        border: "1px solid var(--hairline)",
+        borderRadius: 8,
+        padding: "11px 12px",
+        display: "flex",
+        flexDirection: "column",
+        gap: 8,
+        textDecoration: "none",
+        color: "inherit",
+        position: "relative",
+      }}
+    >
+      <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+        <span className="t-mono" style={{ fontSize: 10, color: "var(--ink-4)" }}>
+          D-{idSuffix}
+        </span>
+        {isHot ? (
+          <span
+            style={{
+              display: "inline-flex",
+              alignItems: "center",
+              gap: 3,
+              fontSize: 10,
+              color: "oklch(0.86 0.14 70)",
+            }}
           >
-            <div className="flex items-center justify-between px-3 py-2">
-              <div>
-                <h2 className="text-sm font-semibold">{DEAL_STAGE_LABELS[stage]}</h2>
-                <p className="text-xs text-muted-foreground">
-                  {items.length} {items.length === 1 ? "deal" : "deals"}
-                  {total > 0 ? ` · ${formatMoney(total, currency)}` : ""}
-                </p>
-              </div>
-            </div>
+            <Flame size={11} />
+            hot
+          </span>
+        ) : null}
+        <div style={{ flex: 1 }} />
+        <MoreHorizontal size={12} color="var(--ink-4)" />
+      </div>
 
-            <div className="flex flex-col gap-2 p-2 pt-0">
-              {items.length === 0 ? (
-                <p className="px-2 py-4 text-center text-xs text-muted-foreground">
-                  Empty
-                </p>
-              ) : (
-                items.map((deal) => (
-                  <Link
-                    key={deal.id}
-                    href={`/deals/${deal.id}`}
-                    className="rounded-md border bg-background p-3 text-sm shadow-sm transition hover:border-foreground/30"
-                  >
-                    <p className="font-medium leading-tight">{deal.name}</p>
-                    {deal.organizationName ? (
-                      <p className="mt-0.5 text-xs text-muted-foreground">
-                        {deal.organizationName}
-                      </p>
-                    ) : null}
-                    <div className="mt-2 flex items-center justify-between">
-                      <Badge variant="outline" className="text-xs">
-                        {deal.type}
-                      </Badge>
-                      {deal.valuePence != null ? (
-                        <span className="text-xs font-medium">
-                          {formatMoney(deal.valuePence, deal.currency)}
-                        </span>
-                      ) : null}
-                    </div>
-                  </Link>
-                ))
-              )}
-            </div>
+      <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
+        <div
+          style={{
+            fontSize: 13,
+            color: "var(--ink)",
+            fontWeight: 500,
+            lineHeight: 1.3,
+          }}
+        >
+          {deal.name}
+        </div>
+        {deal.organizationName ? (
+          <div className="truncate" style={{ fontSize: 11.5, color: "var(--ink-3)" }}>
+            {deal.organizationName}
           </div>
-        );
-      })}
+        ) : null}
+      </div>
+
+      {deal.valuePence != null ? (
+        <div
+          className="t-num"
+          style={{ fontSize: 18, color: "var(--ink)", letterSpacing: "-0.02em" }}
+        >
+          {formatMoney(deal.valuePence, deal.currency)}
+        </div>
+      ) : null}
+
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          gap: 8,
+          paddingTop: 6,
+          borderTop: "1px solid var(--hairline)",
+        }}
+      >
+        {contactInitials !== "·" ? (
+          <span
+            className="zk-avatar"
+            style={{
+              width: 18,
+              height: 18,
+              fontSize: 9,
+              background: `${contactColor}22`,
+              borderColor: `${contactColor}55`,
+              color: contactColor,
+            }}
+          >
+            {contactInitials}
+          </span>
+        ) : null}
+        <span
+          style={{
+            fontSize: 11,
+            color: "var(--ink-3)",
+            display: "inline-flex",
+            alignItems: "center",
+            gap: 4,
+          }}
+        >
+          <Calendar size={10} color="var(--ink-4)" />
+          {closeDisplay}
+        </span>
+        <div style={{ flex: 1 }} />
+        <span
+          className="t-mono"
+          style={{
+            fontSize: 10,
+            padding: "2px 6px",
+            borderRadius: 3,
+            ...chip,
+          }}
+          title={`${days} days in stage`}
+        >
+          {days}d
+        </span>
+      </div>
+    </Link>
+  );
+}
+
+function StageColumn({
+  stage,
+  deals,
+}: {
+  stage: DealStage;
+  deals: Deal[];
+}) {
+  const total = deals.reduce((sum, d) => sum + (d.valuePence ?? 0), 0);
+  const currency = deals[0]?.currency ?? "GBP";
+  return (
+    <div
+      style={{
+        width: 268,
+        flexShrink: 0,
+        display: "flex",
+        flexDirection: "column",
+        gap: 10,
+      }}
+    >
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          gap: 8,
+          padding: "6px 8px 8px",
+          borderBottom: "1px solid var(--hairline)",
+        }}
+      >
+        <span
+          style={{
+            width: 7,
+            height: 7,
+            borderRadius: 999,
+            background: STAGE_ACCENT[stage],
+          }}
+        />
+        <span style={{ fontSize: 12.5, color: "var(--ink)", fontWeight: 500 }}>
+          {DEAL_STAGE_LABELS[stage]}
+        </span>
+        <span
+          className="t-mono"
+          style={{ fontSize: 10.5, color: "var(--ink-4)" }}
+        >
+          {deals.length}
+        </span>
+        <div style={{ flex: 1 }} />
+        {total > 0 ? (
+          <span
+            className="t-num"
+            style={{ fontSize: 13, color: "var(--ink-2)" }}
+          >
+            {formatMoney(total, currency)}
+          </span>
+        ) : null}
+      </div>
+
+      <div
+        style={{
+          display: "flex",
+          flexDirection: "column",
+          gap: 8,
+          overflowY: "auto",
+          paddingRight: 2,
+        }}
+      >
+        {deals.map((d) => (
+          <DealCard key={d.id} deal={d} />
+        ))}
+        <Link
+          href={`/deals/new?stage=${stage}`}
+          className="btn btn-ghost btn-sm"
+          style={{
+            justifyContent: "flex-start",
+            color: "var(--ink-4)",
+            padding: "6px 8px",
+            textDecoration: "none",
+          }}
+        >
+          <Plus size={11} />
+          Add deal
+        </Link>
+      </div>
+    </div>
+  );
+}
+
+export function KanbanBoard({ deals }: { deals: Deal[] }) {
+  const grouped: Record<DealStage, Deal[]> = {
+    lead: [],
+    qualified: [],
+    proposal: [],
+    negotiation: [],
+    won: [],
+    lost: [],
+  };
+  for (const d of deals) {
+    grouped[d.stage].push(d);
+  }
+
+  return (
+    <div
+      style={{
+        flex: 1,
+        overflowX: "auto",
+        overflowY: "hidden",
+        padding: "16px 16px 24px",
+      }}
+    >
+      <div style={{ display: "flex", gap: 14, height: "100%" }}>
+        {DEAL_STAGES.map((stage) => (
+          <StageColumn key={stage} stage={stage} deals={grouped[stage]} />
+        ))}
+      </div>
     </div>
   );
 }

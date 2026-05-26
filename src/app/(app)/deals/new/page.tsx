@@ -1,9 +1,10 @@
 import { desc } from "drizzle-orm";
+import { SquareKanban } from "lucide-react";
 
 import { db } from "@/lib/db";
 import { contacts, organizations } from "@/lib/db/schema";
 import { requireUser } from "@/lib/auth";
-import { PageHeader } from "@/components/page-header";
+import { Topbar } from "@/components/nav/topbar";
 import { DealForm } from "@/components/deals/deal-form";
 import { createDeal } from "../actions";
 
@@ -39,16 +40,23 @@ export default async function NewDealPage() {
   }));
 
   return (
-    <div>
-      <PageHeader title="New deal" description="Add a deal to your pipeline." />
-      <div className="mx-auto max-w-3xl p-4 lg:p-8">
-        <DealForm
-          action={createDeal}
-          organizationOptions={orgOptions}
-          contactOptions={contactOptions}
-          cancelHref="/deals"
-        />
-      </div>
-    </div>
+    <>
+      <Topbar
+        crumbs={[
+          { icon: SquareKanban, label: "Deals" },
+          { label: "New" },
+        ]}
+      />
+      <main className="screen flex-1 overflow-auto" style={{ minWidth: 0 }}>
+        <div className="mx-auto max-w-3xl p-4 lg:p-8">
+          <DealForm
+            action={createDeal}
+            organizationOptions={orgOptions}
+            contactOptions={contactOptions}
+            cancelHref="/deals"
+          />
+        </div>
+      </main>
+    </>
   );
 }

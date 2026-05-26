@@ -1,10 +1,11 @@
 import { notFound } from "next/navigation";
 import { desc, eq } from "drizzle-orm";
+import { SquareKanban } from "lucide-react";
 
 import { db } from "@/lib/db";
 import { contacts, deals, organizations } from "@/lib/db/schema";
 import { requireUser } from "@/lib/auth";
-import { PageHeader } from "@/components/page-header";
+import { Topbar } from "@/components/nav/topbar";
 import { DealForm } from "@/components/deals/deal-form";
 import { updateDeal } from "../../actions";
 
@@ -50,18 +51,26 @@ export default async function EditDealPage({
   }));
 
   return (
-    <div>
-      <PageHeader title={`Edit ${deal.name}`} />
-      <div className="mx-auto max-w-3xl p-4 lg:p-8">
-        <DealForm
-          action={updateDeal.bind(null, id)}
-          defaultValues={deal}
-          organizationOptions={orgOptions}
-          contactOptions={contactOptions}
-          submitLabel="Save changes"
-          cancelHref={`/deals/${id}`}
-        />
-      </div>
-    </div>
+    <>
+      <Topbar
+        crumbs={[
+          { icon: SquareKanban, label: "Deals" },
+          { label: deal.name, href: `/deals/${id}` },
+          { label: "Edit" },
+        ]}
+      />
+      <main className="screen flex-1 overflow-auto" style={{ minWidth: 0 }}>
+        <div className="mx-auto max-w-3xl p-4 lg:p-8">
+          <DealForm
+            action={updateDeal.bind(null, id)}
+            defaultValues={deal}
+            organizationOptions={orgOptions}
+            contactOptions={contactOptions}
+            submitLabel="Save changes"
+            cancelHref={`/deals/${id}`}
+          />
+        </div>
+      </main>
+    </>
   );
 }

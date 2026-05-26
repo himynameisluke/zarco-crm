@@ -2,7 +2,6 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { and, desc, eq } from "drizzle-orm";
 import {
-  ArrowLeft,
   Calendar,
   CircleDollarSign,
   Pencil,
@@ -10,6 +9,7 @@ import {
   Building2,
   Activity as ActivityIcon,
   FileText,
+  SquareKanban,
 } from "lucide-react";
 
 import { db } from "@/lib/db";
@@ -30,6 +30,7 @@ import {
 } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
+import { Topbar } from "@/components/nav/topbar";
 import { PageHeader } from "@/components/page-header";
 import { EmptyState } from "@/components/empty-state";
 import { DealStageSelect } from "@/components/deals/deal-stage-select";
@@ -132,18 +133,14 @@ export default async function DealDetailPage({
   ]);
 
   return (
-    <div>
-      <PageHeader
-        title={deal.name}
-        description={DEAL_TYPE_LABELS[deal.type as DealType]}
-        action={
-          <div className="flex items-center gap-2">
-            <Button variant="ghost" size="sm" asChild>
-              <Link href="/deals">
-                <ArrowLeft className="h-4 w-4" />
-                Back
-              </Link>
-            </Button>
+    <>
+      <Topbar
+        crumbs={[
+          { icon: SquareKanban, label: "Deals" },
+          { label: deal.name },
+        ]}
+        actions={
+          <>
             <Button variant="outline" size="sm" asChild>
               <Link href={`/deals/${deal.id}/edit`}>
                 <Pencil className="h-4 w-4" />
@@ -151,9 +148,14 @@ export default async function DealDetailPage({
               </Link>
             </Button>
             <DeleteDealButton dealId={deal.id} dealName={deal.name} />
-          </div>
+          </>
         }
       />
+      <main className="screen flex-1 overflow-auto" style={{ minWidth: 0 }}>
+        <PageHeader
+          title={deal.name}
+          description={DEAL_TYPE_LABELS[deal.type as DealType]}
+        />
 
       <div className="grid gap-6 p-4 lg:grid-cols-3 lg:p-8">
         <Card className="lg:col-span-1">
@@ -278,6 +280,7 @@ export default async function DealDetailPage({
           </Card>
         </div>
       </div>
-    </div>
+      </main>
+    </>
   );
 }

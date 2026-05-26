@@ -7,8 +7,8 @@ import {
   Briefcase,
   Link as LinkIcon,
   Pencil,
-  ArrowLeft,
   Activity as ActivityIcon,
+  Users,
 } from "lucide-react";
 
 import { db } from "@/lib/db";
@@ -17,6 +17,7 @@ import { requireUser } from "@/lib/auth";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
+import { Topbar } from "@/components/nav/topbar";
 import { PageHeader } from "@/components/page-header";
 import { EmptyState } from "@/components/empty-state";
 import { DeleteContactButton } from "@/components/contacts/delete-contact-button";
@@ -76,18 +77,14 @@ export default async function ContactDetailPage({
     .limit(50);
 
   return (
-    <div>
-      <PageHeader
-        title={fullName(contact)}
-        description={contact.title ?? undefined}
-        action={
-          <div className="flex items-center gap-2">
-            <Button variant="ghost" size="sm" asChild>
-              <Link href="/contacts">
-                <ArrowLeft className="h-4 w-4" />
-                Back
-              </Link>
-            </Button>
+    <>
+      <Topbar
+        crumbs={[
+          { icon: Users, label: "Contacts" },
+          { label: fullName(contact) },
+        ]}
+        actions={
+          <>
             <Button variant="outline" size="sm" asChild>
               <Link href={`/contacts/${contact.id}/edit`}>
                 <Pencil className="h-4 w-4" />
@@ -95,9 +92,14 @@ export default async function ContactDetailPage({
               </Link>
             </Button>
             <DeleteContactButton contactId={contact.id} contactName={fullName(contact)} />
-          </div>
+          </>
         }
       />
+      <main className="screen flex-1 overflow-auto" style={{ minWidth: 0 }}>
+        <PageHeader
+          title={fullName(contact)}
+          description={contact.title ?? undefined}
+        />
 
       <div className="grid gap-6 p-4 lg:grid-cols-3 lg:p-8">
         <Card className="lg:col-span-1">
@@ -168,6 +170,7 @@ export default async function ContactDetailPage({
           </CardContent>
         </Card>
       </div>
-    </div>
+      </main>
+    </>
   );
 }

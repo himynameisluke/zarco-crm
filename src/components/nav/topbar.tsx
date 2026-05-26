@@ -1,6 +1,7 @@
 import { Bell, ChevronRight, Sparkles } from "lucide-react";
 import type { ReactNode } from "react";
 
+import { createClient } from "@/lib/supabase/server";
 import { Sidebar } from "@/components/nav/sidebar";
 import { MobileSidebarTrigger } from "@/components/nav/mobile-sidebar";
 
@@ -22,10 +23,15 @@ type TopbarProps = {
   crumbs?: Crumb[];
   tabs?: TopbarTab[];
   actions?: ReactNode;
-  userEmail?: string;
 };
 
-export function Topbar({ crumbs = [], tabs, actions, userEmail }: TopbarProps) {
+export async function Topbar({ crumbs = [], tabs, actions }: TopbarProps) {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  const userEmail = user?.email ?? undefined;
+
   return (
     <header
       style={{

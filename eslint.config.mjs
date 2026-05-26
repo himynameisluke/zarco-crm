@@ -12,6 +12,10 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // Design handoff bundle — not application code, kept for reference only.
+    "docs/design/**",
+    // Generated migration metadata.
+    "drizzle/**",
   ]),
 ]);
 

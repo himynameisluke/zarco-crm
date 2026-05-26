@@ -1,15 +1,21 @@
-import { CheckSquare } from "lucide-react";
+import { ListChecks } from "lucide-react";
 
-import { PageHeader } from "@/components/page-header";
+import { Topbar } from "@/components/nav/topbar";
 import { EmptyState } from "@/components/empty-state";
 
 export default function TasksPage() {
   return (
-    <div>
-      <PageHeader title="Tasks" description="Things to do, attached to contacts, deals, or standalone." />
-      <div className="p-4 lg:p-8">
-        <EmptyState icon={CheckSquare} title="Tasks coming soon" />
-      </div>
-    </div>
+    <>
+      <Topbar crumbs={[{ icon: ListChecks, label: "Tasks" }]} />
+      <main className="screen flex flex-1 flex-col" style={{ minWidth: 0 }}>
+        <div style={{ padding: 32 }}>
+          <EmptyState
+            icon={ListChecks}
+            title="Tasks coming soon"
+            description="Sectioned by Due today / Overdue / This week / Later / Done. Quick-add at top."
+          />
+        </div>
+      </main>
+    </>
   );
 }
