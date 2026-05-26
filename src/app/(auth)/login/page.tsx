@@ -1,12 +1,3 @@
-"use client";
-
-import { useActionState } from "react";
-import { Loader2, MailCheck } from "lucide-react";
-
-import { sendMagicLink } from "@/app/(auth)/actions";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import {
   Card,
   CardContent,
@@ -15,12 +6,20 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 
-type State = { error?: string; success?: boolean } | null;
+import { LoginForm } from "./login-form";
 
-const initialState: State = null;
+function isSafeNext(value: string | undefined): value is string {
+  return !!value && value.startsWith("/") && !value.startsWith("//");
+}
 
-export default function LoginPage() {
-  const [state, formAction, pending] = useActionState(sendMagicLink, initialState);
+export default async function LoginPage({
+  searchParams,
+}: {
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+}) {
+  const raw = await searchParams;
+  const nextValue = typeof raw.next === "string" ? raw.next : undefined;
+  const next = isSafeNext(nextValue) ? nextValue : null;
 
   return (
     <Card>
@@ -31,35 +30,7 @@ export default function LoginPage() {
         </CardDescription>
       </CardHeader>
       <CardContent>
-        {state?.success ? (
-          <div className="flex flex-col items-center gap-3 py-4 text-center">
-            <MailCheck className="h-10 w-10 text-primary" />
-            <p className="text-sm text-muted-foreground">
-              Check your inbox for a sign-in link.
-            </p>
-          </div>
-        ) : (
-          <form action={formAction} className="grid gap-4">
-            <div className="grid gap-2">
-              <Label htmlFor="email">Email</Label>
-              <Input
-                id="email"
-                name="email"
-                type="email"
-                placeholder="you@zarco.uk"
-                required
-                disabled={pending}
-              />
-            </div>
-            {state?.error ? (
-              <p className="text-sm text-destructive">{state.error}</p>
-            ) : null}
-            <Button type="submit" disabled={pending}>
-              {pending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-              Send magic link
-            </Button>
-          </form>
-        )}
+        <LoginForm next={next} />
       </CardContent>
     </Card>
   );
