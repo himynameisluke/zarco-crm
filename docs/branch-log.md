@@ -22,6 +22,7 @@ one, not main).
 | 2026-05-26 | `feat/inbox-v1` | 10 | +2,894 | -11 | 1 | Inbox processing queue (`inbox_items` schema + triage UI + sidebar count) |
 | 2026-05-26 | `feat/quotes-builder` | 12 | +1,890 | -9 | 1 | Quote builder with live totals + public client view at `/q/[token]` |
 | 2026-05-26 | `feat/campaigns-and-high-stakes` | 13 | +1,593 | -9 | 1 | Campaigns module (draft mode, no Resend); MCP delete_* + send_* (stubbed) with confirm-required gating; Outlook/Resend/Granola placeholder cards on /settings/mcp |
+| 2026-05-27 | `feat/password-auth` | 3 | placeholder | placeholder | 1 | Switch sign-in from magic-link OTP to email + password (signInWithPassword + signUp). Magic link redirect URL was a mess across local/Vercel/custom-domain environments; password auth keeps everything in-app. |
 
 ## Running totals (cumulative, since `main`)
 
