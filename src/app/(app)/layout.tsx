@@ -43,7 +43,15 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       className="crm flex h-screen"
       style={{ background: "var(--bg)", color: "var(--ink)" }}
     >
-      <div className="hidden lg:block h-full">
+      {/* Desktop sidebar: explicit width + flex-shrink so it can't collapse
+          when the flex container is at viewport width. `block` alone made the
+          wrapper a shrinkable flex item that compressed to ~0 in some
+          viewports (only the absolutely-positioned bits of the Sidebar were
+          visible). */}
+      <div
+        className="hidden lg:block h-full"
+        style={{ width: 232, flexShrink: 0 }}
+      >
         <Sidebar userEmail={userEmail} counts={counts} />
       </div>
       <div className="flex flex-1 flex-col overflow-hidden">{children}</div>
