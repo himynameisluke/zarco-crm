@@ -63,7 +63,7 @@ export function MobileSidebarTrigger({ children }: { children: ReactNode }) {
     <>
       <button
         type="button"
-        className={cn("btn btn-ghost btn-icon lg:hidden")}
+        className={cn("btn btn-ghost btn-icon sm:hidden")}
         aria-label="Open navigation"
         onClick={() => setOpen(true)}
       >
@@ -73,7 +73,7 @@ export function MobileSidebarTrigger({ children }: { children: ReactNode }) {
       {open && mounted
         ? createPortal(
             <div
-              className="fixed inset-0 z-50 lg:hidden flex"
+              className="fixed inset-0 z-50 sm:hidden flex"
               role="dialog"
               aria-modal="true"
               aria-label="Navigation"
