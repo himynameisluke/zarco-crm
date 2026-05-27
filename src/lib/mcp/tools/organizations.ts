@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { desc, eq, ilike, or } from "drizzle-orm";
+import { and, desc, eq, gte, ilike, or } from "drizzle-orm";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 
 import { db } from "@/lib/db";
@@ -149,6 +149,105 @@ export function registerOrganizationTools(server: McpServer) {
       });
 
       return textResult({ created: inserted });
+    },
+  );
+
+  server.registerTool(
+    "update_organization",
+    {
+      description:
+        "Update an existing organization. Pass only the fields you want to change. Returns the updated row. Logs an audit activity.",
+      inputSchema: {
+        id: z.string().uuid(),
+        name: z.string().trim().min(1).max(200).optional(),
+        domain: z.string().trim().max(200).optional(),
+        website: z.string().trim().url().max(500).optional(),
+        industry: z.string().trim().max(120).optional(),
+        employeeCount: z.number().int().min(0).max(10_000_000).optional(),
+        notes: z.string().trim().max(5000).optional(),
+      },
+      annotations: { destructiveHint: false, idempotentHint: true },
+    },
+    async ({ id, ...patch }, { authInfo }) => {
+      const { userId } = getMcpContext(authInfo);
+
+      const updateValues: Record<string, unknown> = { updatedAt: new Date() };
+      if (patch.name !== undefined) updateValues.name = patch.name;
+      if (patch.domain !== undefined) updateValues.domain = nullable(patch.domain);
+      if (patch.website !== undefined) updateValues.website = nullable(patch.website);
+      if (patch.industry !== undefined)
+        updateValues.industry = nullable(patch.industry);
+      if (patch.employeeCount !== undefined)
+        updateValues.employeeCount = patch.employeeCount;
+      if (patch.notes !== undefined) updateValues.notes = nullable(patch.notes);
+
+      const [updated] = await db
+        .update(organizations)
+        .set(updateValues)
+        .where(eq(organizations.id, id))
+        .returning();
+
+      if (!updated) return textResult({ error: "not_found", id });
+
+      const changedFields = Object.keys(updateValues).filter(
+        (k) => k !== "updatedAt",
+      );
+
+      await auditMcpWrite({
+        type: "note",
+        subjectType: "organization",
+        subjectId: id,
+        subject: `Updated organization ${updated.name}`,
+        body:
+          changedFields.length > 0
+            ? `Changed: ${changedFields.join(", ")}`
+            : undefined,
+        userId,
+      });
+
+      return textResult({ updated });
+    },
+  );
+
+  server.registerTool(
+    "list_organizations",
+    {
+      description:
+        "List organizations with optional filters. No query string required (unlike find_organization). Filters: industry (substring), createdSinceDays. Default limit 50, max 200. Ordered by updated_at desc.",
+      inputSchema: {
+        industry: z.string().trim().max(120).optional(),
+        createdSinceDays: z.number().int().min(1).max(365).optional(),
+        limit: z.number().int().min(1).max(200).default(50),
+      },
+      annotations: { destructiveHint: false, idempotentHint: true },
+    },
+    async ({ industry, createdSinceDays, limit }) => {
+      const filters = [
+        industry ? ilike(organizations.industry, `%${industry}%`) : undefined,
+        createdSinceDays
+          ? gte(
+              organizations.createdAt,
+              new Date(Date.now() - createdSinceDays * 24 * 60 * 60 * 1000),
+            )
+          : undefined,
+      ].filter(Boolean) as Parameters<typeof and>[number][];
+
+      const rows = await db
+        .select({
+          id: organizations.id,
+          name: organizations.name,
+          domain: organizations.domain,
+          industry: organizations.industry,
+          employeeCount: organizations.employeeCount,
+          createdAt: organizations.createdAt,
+          updatedAt: organizations.updatedAt,
+        })
+        .from(organizations)
+        .where(filters.length ? and(...filters) : undefined)
+        .orderBy(desc(organizations.updatedAt))
+        .limit(limit);
+
+      return textResult({ count: rows.length, organizations: rows });
     },
   );
 }

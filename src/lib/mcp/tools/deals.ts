@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { and, desc, eq, ilike } from "drizzle-orm";
+import { and, desc, eq, gte, ilike, sql } from "drizzle-orm";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 
 import { db } from "@/lib/db";
@@ -230,14 +230,15 @@ export function registerDealTools(server: McpServer) {
     "update_deal_stage",
     {
       description:
-        "Move a deal to a different pipeline stage. Logs the stage change as an audit activity so it shows on the deal timeline.",
+        "Move a deal to a different pipeline stage. Optionally include a `reason` string (e.g. 'they went with a competitor') which is appended to the audit-activity body so the stage change has context on the timeline.",
       inputSchema: {
         id: z.string().uuid(),
         stage: z.enum(STAGE_VALUES),
+        reason: z.string().trim().max(2000).optional(),
       },
       annotations: { destructiveHint: false, idempotentHint: true },
     },
-    async ({ id, stage }, { authInfo }) => {
+    async ({ id, stage, reason }, { authInfo }) => {
       const { userId } = getMcpContext(authInfo);
 
       const [before] = await db
@@ -260,17 +261,204 @@ export function registerDealTools(server: McpServer) {
         .where(eq(deals.id, id))
         .returning();
 
+      const base = `Deal "${before.name}" moved from ${before.stage} to ${stage}`;
       await auditMcpWrite({
         type: "status_change",
         subjectType: "deal",
         subjectId: id,
         subject: `${before.stage} → ${stage}`,
-        body: `Deal "${before.name}" moved from ${before.stage} to ${stage}`,
+        body: reason ? `${base}\n\nReason: ${reason}` : base,
         userId,
-        metadata: { fromStage: before.stage, toStage: stage },
+        metadata: { fromStage: before.stage, toStage: stage, reason },
       });
 
       return textResult({ updated });
+    },
+  );
+
+  server.registerTool(
+    "update_deal",
+    {
+      description:
+        "Update an existing deal's editable fields. Pass only what you want to change — anything omitted is left alone. Use update_deal_stage for stage moves (it generates a richer audit entry).",
+      inputSchema: {
+        id: z.string().uuid(),
+        name: z.string().trim().min(1).max(200).optional(),
+        type: z.enum(TYPE_VALUES).optional(),
+        valuePence: z.number().int().min(0).max(1_000_000_000_00).optional(),
+        currency: z.string().trim().length(3).optional(),
+        closeDate: z
+          .string()
+          .regex(/^\d{4}-\d{2}-\d{2}$/, "Use YYYY-MM-DD")
+          .nullable()
+          .optional(),
+        organizationId: z.string().uuid().nullable().optional(),
+        primaryContactId: z.string().uuid().nullable().optional(),
+      },
+      annotations: { destructiveHint: false, idempotentHint: true },
+    },
+    async ({ id, ...patch }, { authInfo }) => {
+      const { userId } = getMcpContext(authInfo);
+
+      const updateValues: Record<string, unknown> = { updatedAt: new Date() };
+      if (patch.name !== undefined) updateValues.name = patch.name;
+      if (patch.type !== undefined) updateValues.type = patch.type;
+      if (patch.valuePence !== undefined) updateValues.valuePence = patch.valuePence;
+      if (patch.currency !== undefined) updateValues.currency = patch.currency;
+      if (patch.closeDate !== undefined) updateValues.closeDate = patch.closeDate;
+      if (patch.organizationId !== undefined)
+        updateValues.organizationId = patch.organizationId;
+      if (patch.primaryContactId !== undefined)
+        updateValues.primaryContactId = patch.primaryContactId;
+
+      const [updated] = await db
+        .update(deals)
+        .set(updateValues)
+        .where(eq(deals.id, id))
+        .returning();
+
+      if (!updated) return textResult({ error: "not_found", id });
+
+      const changedFields = Object.keys(updateValues).filter(
+        (k) => k !== "updatedAt",
+      );
+
+      await auditMcpWrite({
+        type: "note",
+        subjectType: "deal",
+        subjectId: id,
+        subject: `Updated deal ${updated.name}`,
+        body:
+          changedFields.length > 0
+            ? `Changed: ${changedFields.join(", ")}`
+            : undefined,
+        userId,
+      });
+
+      return textResult({ updated });
+    },
+  );
+
+  server.registerTool(
+    "list_deals",
+    {
+      description:
+        "List deals with optional filters. No query string required — use this to scan the whole pipeline (unlike find_deal). Filters: stage, type, dealsCreatedSinceDays (e.g. 7 = last week). Default limit 50, max 200. Ordered by updated_at desc.",
+      inputSchema: {
+        stage: z.enum(STAGE_VALUES).optional(),
+        type: z.enum(TYPE_VALUES).optional(),
+        createdSinceDays: z.number().int().min(1).max(365).optional(),
+        limit: z.number().int().min(1).max(200).default(50),
+      },
+      annotations: { destructiveHint: false, idempotentHint: true },
+    },
+    async ({ stage, type, createdSinceDays, limit }) => {
+      const filters = [
+        stage ? eq(deals.stage, stage) : undefined,
+        type ? eq(deals.type, type) : undefined,
+        createdSinceDays
+          ? gte(
+              deals.createdAt,
+              new Date(Date.now() - createdSinceDays * 24 * 60 * 60 * 1000),
+            )
+          : undefined,
+      ].filter(Boolean) as Parameters<typeof and>[number][];
+
+      const rows = await db
+        .select({
+          id: deals.id,
+          name: deals.name,
+          type: deals.type,
+          stage: deals.stage,
+          valuePence: deals.valuePence,
+          currency: deals.currency,
+          closeDate: deals.closeDate,
+          organizationId: deals.organizationId,
+          organizationName: organizations.name,
+          primaryContactId: deals.primaryContactId,
+          createdAt: deals.createdAt,
+          updatedAt: deals.updatedAt,
+        })
+        .from(deals)
+        .leftJoin(organizations, eq(deals.organizationId, organizations.id))
+        .where(filters.length ? and(...filters) : undefined)
+        .orderBy(desc(deals.updatedAt))
+        .limit(limit);
+
+      return textResult({ count: rows.length, deals: rows });
+    },
+  );
+
+  server.registerTool(
+    "get_pipeline_summary",
+    {
+      description:
+        "Single-call snapshot of the deal pipeline: total open value, weighted forecast (stage-weighted), counts + values per stage, won/lost ratios over the last 90 days. Use this to answer 'how's my pipeline?' style questions in one round-trip instead of fishing through find_deal.",
+      inputSchema: {},
+      annotations: { destructiveHint: false, idempotentHint: true },
+    },
+    async () => {
+      const breakdown = await db
+        .select({
+          stage: deals.stage,
+          count: sql<number>`count(*)::int`,
+          value: sql<number>`coalesce(sum(${deals.valuePence}), 0)::bigint`,
+        })
+        .from(deals)
+        .groupBy(deals.stage);
+
+      const weights: Record<(typeof STAGE_VALUES)[number], number> = {
+        lead: 0.1,
+        qualified: 0.25,
+        proposal: 0.5,
+        negotiation: 0.75,
+        won: 1,
+        lost: 0,
+      };
+
+      const byStage: Record<string, { count: number; valuePence: number }> = {};
+      let openValue = 0;
+      let openCount = 0;
+      let weightedPence = 0;
+      for (const row of breakdown) {
+        const valuePence = Number(row.value);
+        byStage[row.stage] = { count: row.count, valuePence };
+        if (row.stage !== "won" && row.stage !== "lost") {
+          openValue += valuePence;
+          openCount += row.count;
+        }
+        weightedPence += valuePence * (weights[row.stage] ?? 0);
+      }
+
+      const ninetyDaysAgo = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000);
+      const decided = await db
+        .select({
+          stage: deals.stage,
+          count: sql<number>`count(*)::int`,
+        })
+        .from(deals)
+        .where(
+          and(
+            gte(deals.updatedAt, ninetyDaysAgo),
+            sql`${deals.stage} in ('won', 'lost')`,
+          ),
+        )
+        .groupBy(deals.stage);
+
+      const won = decided.find((r) => r.stage === "won")?.count ?? 0;
+      const lost = decided.find((r) => r.stage === "lost")?.count ?? 0;
+      const winRate90d = won + lost === 0 ? null : won / (won + lost);
+
+      return textResult({
+        pipeline: {
+          openValuePence: openValue,
+          openCount,
+          weightedForecastPence: Math.round(weightedPence),
+          currency: "GBP",
+        },
+        byStage,
+        last90Days: { won, lost, winRate: winRate90d },
+      });
     },
   );
 }
