@@ -51,10 +51,10 @@ export function registerQuoteTools(server: McpServer) {
     "create_quote",
     {
       description:
-        "Create a draft quote with line items. Optionally link to a deal / organization / contact. Quote number is auto-generated (Q-NNNN). Subtotal + total are computed from the line items + tax rate. Status starts at 'draft'; use send_quote to send. valuePence-style amounts: unitPricePence is integer pence (£15.50 = 1550). taxRate is decimal (0.2 = 20%).",
+        "Create a draft quote with line items. dealId AND organizationId are required (quotes must trace back to a pipeline deal). contactId is optional. Quote number is auto-generated (Q-NNNN). Subtotal + total are computed from the line items + tax rate. Status starts at 'draft'; use send_quote to send. unitPricePence is integer pence (£15.50 = 1550). taxRate is decimal (0.2 = 20%).",
       inputSchema: {
-        dealId: z.string().uuid().optional(),
-        organizationId: z.string().uuid().optional(),
+        dealId: z.string().uuid(),
+        organizationId: z.string().uuid(),
         contactId: z.string().uuid().optional(),
         currency: z.string().trim().length(3).default("GBP"),
         taxRate: z.number().min(0).max(1).default(0),
@@ -80,8 +80,8 @@ export function registerQuoteTools(server: McpServer) {
         .insert(quotes)
         .values({
           quoteNumber,
-          dealId: input.dealId ?? null,
-          organizationId: input.organizationId ?? null,
+          dealId: input.dealId,
+          organizationId: input.organizationId,
           contactId: input.contactId ?? null,
           status: "draft",
           subtotalPence,
@@ -109,17 +109,15 @@ export function registerQuoteTools(server: McpServer) {
         )
         .returning();
 
-      // Attribute on the deal timeline if linked.
-      if (inserted.dealId) {
-        await auditMcpWrite({
-          type: "note",
-          subjectType: "deal",
-          subjectId: inserted.dealId,
-          subject: `Created quote ${inserted.quoteNumber}`,
-          body: `Total: ${inserted.currency} ${(inserted.totalPence / 100).toFixed(2)} · ${input.lineItems.length} line item${input.lineItems.length === 1 ? "" : "s"}`,
-          userId,
-        });
-      }
+      // Attribute on the deal timeline. dealId is always set now (required).
+      await auditMcpWrite({
+        type: "note",
+        subjectType: "deal",
+        subjectId: inserted.dealId,
+        subject: `Created quote ${inserted.quoteNumber}`,
+        body: `Total: ${inserted.currency} ${(inserted.totalPence / 100).toFixed(2)} · ${input.lineItems.length} line item${input.lineItems.length === 1 ? "" : "s"}`,
+        userId,
+      });
 
       return textResult({
         created: { ...inserted, lineItems: lineRows },

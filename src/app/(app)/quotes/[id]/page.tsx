@@ -2,7 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { asc, eq } from "drizzle-orm";
 import { headers } from "next/headers";
-import { FileText, Pencil } from "lucide-react";
+import { Download, FileText, Pencil } from "lucide-react";
 
 import { db } from "@/lib/db";
 import {
@@ -108,6 +108,14 @@ export default async function QuoteDetailPage({
         ]}
         actions={
           <>
+            <Button variant="outline" size="sm" asChild>
+              {/* download attribute prompts the browser to save rather than
+                  opening — same route also supports ?inline=1 for in-tab view */}
+              <a href={`/quotes/${quote.id}/pdf`} download>
+                <Download className="h-3.5 w-3.5" />
+                PDF
+              </a>
+            </Button>
             <Button variant="outline" size="sm" asChild>
               <Link href={`/quotes/${quote.id}/edit`}>
                 <Pencil className="h-3.5 w-3.5" />

@@ -328,13 +328,44 @@ export default async function PublicQuotePage({
           )}
         </div>
 
+        {/* Download PDF — always available regardless of quote status, so a
+            client can save the document even after declining. Opens the
+            inline view in a new tab; the download attribute on the second
+            link force-saves. */}
+        <div
+          style={{
+            display: "flex",
+            gap: 12,
+            justifyContent: "center",
+            marginTop: 24,
+            fontSize: 12,
+          }}
+        >
+          <a
+            href={`/q/${token}/pdf?inline=1`}
+            target="_blank"
+            rel="noopener noreferrer"
+            style={{ color: "var(--ink-3)", textDecoration: "underline" }}
+          >
+            View PDF
+          </a>
+          <span style={{ color: "var(--ink-4)" }}>·</span>
+          <a
+            href={`/q/${token}/pdf`}
+            download
+            style={{ color: "var(--ink-3)", textDecoration: "underline" }}
+          >
+            Download PDF
+          </a>
+        </div>
+
         <p
           className="t-mono"
           style={{
             fontSize: 10,
             color: "var(--ink-4)",
             textAlign: "center",
-            marginTop: 24,
+            marginTop: 16,
             letterSpacing: "0.14em",
           }}
         >

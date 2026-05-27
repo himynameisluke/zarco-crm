@@ -36,8 +36,10 @@ export const lineItemSchema = z.object({
 });
 
 export const quoteFormSchema = z.object({
-  dealId: z.string().uuid().optional().or(z.literal("")),
-  organizationId: z.string().uuid().optional().or(z.literal("")),
+  // Required. DB enforces NOT NULL + restrict — these messages mirror the
+  // form labels so the user knows what to fix.
+  dealId: z.string().uuid("Select a deal for this quote"),
+  organizationId: z.string().uuid("Select an organization for this quote"),
   contactId: z.string().uuid().optional().or(z.literal("")),
   currency: z.string().trim().length(3).default("GBP"),
   taxRate: z.coerce.number().min(0).max(1).default(0),

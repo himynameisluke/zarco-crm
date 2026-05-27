@@ -77,8 +77,10 @@ export async function createQuote(_: unknown, formData: FormData) {
     .insert(quotes)
     .values({
       quoteNumber,
-      dealId: nullable(parsed.data.dealId),
-      organizationId: nullable(parsed.data.organizationId),
+      // dealId + organizationId are required (DB NOT NULL + zod uuid).
+      // contactId stays optional.
+      dealId: parsed.data.dealId,
+      organizationId: parsed.data.organizationId,
       contactId: nullable(parsed.data.contactId),
       status: "draft",
       subtotalPence,
@@ -121,8 +123,8 @@ export async function updateQuote(id: string, _: unknown, formData: FormData) {
   await db
     .update(quotes)
     .set({
-      dealId: nullable(parsed.data.dealId),
-      organizationId: nullable(parsed.data.organizationId),
+      dealId: parsed.data.dealId,
+      organizationId: parsed.data.organizationId,
       contactId: nullable(parsed.data.contactId),
       subtotalPence,
       taxRate: parsed.data.taxRate.toString(),
