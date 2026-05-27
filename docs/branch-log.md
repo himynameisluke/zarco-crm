@@ -32,6 +32,7 @@ one, not main).
 | 2026-05-27 | `feat/mcp-tools-expansion` | 6 | +537 | -8 | 1 | Add the tools Luke's Claude flagged as gaps: update_deal (full update, not just stage), update_organization, list_deals + list_contacts + list_organizations + list_tasks (no query string required, with filters), get_pipeline_summary (single-call pipeline snapshot), create_quote + list_quotes + get_quote + update_quote (full quote CRUD). Also extend update_deal_stage with an optional `reason` field that appends to the audit body. Server bumped to v0.4.0. |
 | 2026-05-27 | `fix/dashboard-claude-card-cleanup` | 1 | +30 | -85 | 1 | Drop the 'From Claude' dashboard card when a client is connected (it was dead-weight signalling already-known state). Replace with a small linked pill in the greeting row ('Claude · N writes'). Widen activity+tasks to fill the reclaimed bottom-right slot when connected. CTA card still shows in the not-connected state. |
 | 2026-05-27 | `feat/branded-quote-pdf` | 16 | +3,262 | -44 | 1 | Branded A4 PDF export for quotes via @react-pdf/renderer. White paper + navy ink + amber accent rule + Zarco ring mark (CSS gradient stroke). Routes: GET /q/[token]/pdf (public) and /quotes/[id]/pdf (auth-gated). Download button on internal detail page, View/Download links on public client view. ALSO: lock quotes.dealId + quotes.organizationId to NOT NULL (DB migration + zod + MCP create_quote enforcement) so quotes can't be orphans. Note: 2k of the diff is the auto-generated drizzle snapshot; real new code is ~700 LOC. |
+| 2026-05-27 | `feat/quote-inline-create` | 3 | +476 | -50 | 1 | EntityCombobox component (cmdk-powered search + "+ Create" inline create). Quick-create server actions for org / deal / contact (name-only, defaults sensible). Quote form swaps the three Selects for comboboxes — type-to-search, no-match shows "+ Create as new …", click and you're back on the quote with the link populated. New contacts/deals auto-link to the selected organization. Keeps the required-deal+org constraint, removes the friction. |
 
 ## Running totals (cumulative, since `main`)
 
@@ -57,7 +58,8 @@ one, not main).
 | `fix/dashboard-mcp-card` | +96 | Merged to main in PR #9 — dashboard "From Claude" card now reflects real connection status |
 | `feat/mcp-tools-expansion` | +529 | Merged to main in PR #10 — adds the missing MCP tools Luke's Claude session flagged |
 | `fix/dashboard-claude-card-cleanup` | -55 | Merged to main in PR #11 — removes the From-Claude card once connected, replaces with a small status pill |
-| `feat/branded-quote-pdf` | +3,218 | Off main, current branch — branded quote PDF generation + required deal/org on quotes (2k of diff is auto-generated drizzle snapshot) |
+| `feat/branded-quote-pdf` | +3,218 | Awaiting merge in PR #12 — branded quote PDF generation + required deal/org on quotes |
+| `feat/quote-inline-create` | +426 | Off feat/branded-quote-pdf, current branch — inline create-on-the-fly for org/deal/contact from the quote form |
 
 Numbers are inflated by the design bundle archived in `docs/design/` (HTML +
 JSX prototypes for reference) — production code is roughly half that.
