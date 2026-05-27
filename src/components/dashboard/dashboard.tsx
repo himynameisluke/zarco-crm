@@ -625,6 +625,26 @@ export async function Dashboard({ userEmail }: { userEmail: string }) {
               </p>
             </div>
             <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+              {mcpClientCount > 0 ? (
+                <Link
+                  href="/settings/mcp"
+                  className="chip"
+                  style={{
+                    background: "oklch(0.78 0.20 145 / 0.10)",
+                    border: "1px solid oklch(0.78 0.20 145 / 0.25)",
+                    color: "oklch(0.86 0.20 145)",
+                    textDecoration: "none",
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: 6,
+                  }}
+                  title={`${mcpClientCount} Claude client${mcpClientCount === 1 ? "" : "s"} connected — ${mcpRecentActivityCount} write${mcpRecentActivityCount === 1 ? "" : "s"} this week. Click to manage.`}
+                >
+                  <Zap size={11} color="var(--amber)" />
+                  Claude · {mcpRecentActivityCount} write
+                  {mcpRecentActivityCount === 1 ? "" : "s"}
+                </Link>
+              ) : null}
               <span className="chip --mute">{todayLabel}</span>
             </div>
           </div>
@@ -673,11 +693,14 @@ export async function Dashboard({ userEmail }: { userEmail: string }) {
             />
           </div>
 
-          {/* Bottom row: activity, tasks, Claude */}
+          {/* Bottom row: activity, tasks, (Claude card only when not yet
+              connected — once you've got a client wired, the status pill in
+              the greeting row carries the info and we widen activity + tasks). */}
           <div
             style={{
               display: "grid",
-              gridTemplateColumns: "1.4fr 1fr 1fr",
+              gridTemplateColumns:
+                mcpClientCount > 0 ? "1.6fr 1fr" : "1.4fr 1fr 1fr",
               gap: 16,
             }}
           >
@@ -914,7 +937,10 @@ export async function Dashboard({ userEmail }: { userEmail: string }) {
               </ul>
             </div>
 
-            {/* Claude / MCP card */}
+            {/* Claude / MCP card — only when nothing's connected (CTA state).
+                Once any client connects, the small pill in the greeting row
+                carries the status and this slot disappears. */}
+            {mcpClientCount === 0 ? (
             <div
               className="card"
               style={{
@@ -957,82 +983,11 @@ export async function Dashboard({ userEmail }: { userEmail: string }) {
                   gap: 12,
                 }}
               >
-                {mcpClientCount > 0 ? (
-                  <>
-                    <p
-                      style={{
-                        fontSize: 12.5,
-                        color: "var(--ink-2)",
-                        lineHeight: 1.5,
-                        margin: 0,
-                      }}
-                    >
-                      <span style={{ color: "var(--ink)" }}>
-                        {mcpClientCount} Claude client
-                        {mcpClientCount === 1 ? "" : "s"} connected
-                      </span>{" "}
-                      with read + write access. Anything Claude does is
-                      attributed in the activity feed.
-                    </p>
-                    <div
-                      style={{
-                        display: "flex",
-                        gap: 14,
-                        padding: "10px 12px",
-                        borderRadius: 6,
-                        background: "var(--surface-2)",
-                        border: "1px solid var(--hairline)",
-                      }}
-                    >
-                      <div style={{ flex: 1 }}>
-                        <div
-                          className="t-num"
-                          style={{ fontSize: 18, color: "var(--ink)" }}
-                        >
-                          {mcpRecentActivityCount}
-                        </div>
-                        <span
-                          className="t-mono"
-                          style={{ fontSize: 10, color: "var(--ink-4)" }}
-                        >
-                          MCP WRITES · 7d
-                        </span>
-                      </div>
-                      <div
-                        style={{
-                          width: 1,
-                          background: "var(--hairline)",
-                        }}
-                      />
-                      <div style={{ flex: 1 }}>
-                        <div
-                          className="t-num"
-                          style={{ fontSize: 18, color: "var(--ink)" }}
-                        >
-                          {mcpClientCount}
-                        </div>
-                        <span
-                          className="t-mono"
-                          style={{ fontSize: 10, color: "var(--ink-4)" }}
-                        >
-                          ACTIVE TOKENS
-                        </span>
-                      </div>
-                    </div>
-                    <div style={{ display: "flex", gap: 8 }}>
-                      <Link
-                        href="/activity?source=mcp"
-                        className="btn btn-primary btn-sm"
-                      >
-                        View MCP activity
-                      </Link>
-                      <Link href="/settings/mcp" className="btn btn-sm">
-                        Manage tokens
-                      </Link>
-                    </div>
-                  </>
-                ) : (
-                  <>
+                {/* Inner branching removed — outer mcpClientCount === 0
+                    gate means this body only renders for the not-connected
+                    case. Connected state is handled by the small pill in
+                    the greeting row. */}
+                <>
                     <p
                       style={{
                         fontSize: 12.5,
@@ -1087,10 +1042,10 @@ export async function Dashboard({ userEmail }: { userEmail: string }) {
                       update entities, send emails + quotes (gated by explicit
                       confirm).
                     </p>
-                  </>
-                )}
+                </>
               </div>
             </div>
+            ) : null}
           </div>
         </div>
       </main>
