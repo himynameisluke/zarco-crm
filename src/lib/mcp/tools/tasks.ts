@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { eq } from "drizzle-orm";
+import { and, asc, desc, eq, gte, isNotNull, lt, ne } from "drizzle-orm";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 
 import { db } from "@/lib/db";
@@ -105,6 +105,73 @@ export function registerTaskTools(server: McpServer) {
       }
 
       return textResult({ updated });
+    },
+  );
+
+  server.registerTool(
+    "list_tasks",
+    {
+      description:
+        "List tasks with optional filters. Use this to answer 'what's on my plate?' style questions. Filters: status (default excludes 'done'), dueWithinDays (e.g. 7 = due in the next week), overdue (true = past due, not done), subjectType + subjectId (tasks linked to one entity). Default limit 50.",
+      inputSchema: {
+        status: z.enum(["todo", "in_progress", "done"]).optional(),
+        dueWithinDays: z.number().int().min(1).max(365).optional(),
+        overdue: z.boolean().optional(),
+        subjectType: z.enum(SUBJECT_TYPES).optional(),
+        subjectId: z.string().uuid().optional(),
+        limit: z.number().int().min(1).max(200).default(50),
+      },
+      annotations: { destructiveHint: false, idempotentHint: true },
+    },
+    async ({
+      status,
+      dueWithinDays,
+      overdue,
+      subjectType,
+      subjectId,
+      limit,
+    }) => {
+      const now = new Date();
+      const filters = [
+        // If a specific status is requested, honour it. Otherwise default to
+        // "not done" since open work is what callers usually want.
+        status ? eq(tasks.status, status) : ne(tasks.status, "done"),
+        dueWithinDays
+          ? and(
+              isNotNull(tasks.dueAt),
+              gte(tasks.dueAt, now),
+              lt(
+                tasks.dueAt,
+                new Date(now.getTime() + dueWithinDays * 24 * 60 * 60 * 1000),
+              ),
+            )
+          : undefined,
+        overdue
+          ? and(isNotNull(tasks.dueAt), lt(tasks.dueAt, now))
+          : undefined,
+        subjectType ? eq(tasks.subjectType, subjectType) : undefined,
+        subjectId ? eq(tasks.subjectId, subjectId) : undefined,
+      ].filter(Boolean) as Parameters<typeof and>[number][];
+
+      const rows = await db
+        .select({
+          id: tasks.id,
+          title: tasks.title,
+          description: tasks.description,
+          status: tasks.status,
+          dueAt: tasks.dueAt,
+          completedAt: tasks.completedAt,
+          subjectType: tasks.subjectType,
+          subjectId: tasks.subjectId,
+          createdAt: tasks.createdAt,
+        })
+        .from(tasks)
+        .where(filters.length ? and(...filters) : undefined)
+        // dueAt asc so the most pressing comes first; nulls sort last
+        .orderBy(asc(tasks.dueAt), desc(tasks.createdAt))
+        .limit(limit);
+
+      return textResult({ count: rows.length, tasks: rows });
     },
   );
 }

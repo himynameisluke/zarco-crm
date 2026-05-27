@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { and, desc, eq, ilike, or } from "drizzle-orm";
+import { and, desc, eq, gte, ilike, or } from "drizzle-orm";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 
 import { db } from "@/lib/db";
@@ -227,6 +227,52 @@ export function registerContactTools(server: McpServer) {
       });
 
       return textResult({ updated });
+    },
+  );
+
+  server.registerTool(
+    "list_contacts",
+    {
+      description:
+        "List contacts with optional filters. No query string required (unlike find_contact). Filters: organizationId, createdSinceDays. Default limit 50, max 200. Ordered by updated_at desc.",
+      inputSchema: {
+        organizationId: z.string().uuid().optional(),
+        createdSinceDays: z.number().int().min(1).max(365).optional(),
+        limit: z.number().int().min(1).max(200).default(50),
+      },
+      annotations: { destructiveHint: false, idempotentHint: true },
+    },
+    async ({ organizationId, createdSinceDays, limit }) => {
+      const filters = [
+        organizationId ? eq(contacts.organizationId, organizationId) : undefined,
+        createdSinceDays
+          ? gte(
+              contacts.createdAt,
+              new Date(Date.now() - createdSinceDays * 24 * 60 * 60 * 1000),
+            )
+          : undefined,
+      ].filter(Boolean) as Parameters<typeof and>[number][];
+
+      const rows = await db
+        .select({
+          id: contacts.id,
+          firstName: contacts.firstName,
+          lastName: contacts.lastName,
+          email: contacts.email,
+          phone: contacts.phone,
+          title: contacts.title,
+          organizationId: contacts.organizationId,
+          organizationName: organizations.name,
+          createdAt: contacts.createdAt,
+          updatedAt: contacts.updatedAt,
+        })
+        .from(contacts)
+        .leftJoin(organizations, eq(contacts.organizationId, organizations.id))
+        .where(filters.length ? and(...filters) : undefined)
+        .orderBy(desc(contacts.updatedAt))
+        .limit(limit);
+
+      return textResult({ count: rows.length, contacts: rows });
     },
   );
 }
