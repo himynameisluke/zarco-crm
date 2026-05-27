@@ -28,6 +28,7 @@ one, not main).
 | 2026-05-27 | `feat/settings-pages` | 6 | +792 | -11 | 1 | Populate /settings: landing page with section cards + Profile (with re-auth-gated change-password form) + Workspace stub + Team stub. Profile + password change is the priority — solves the "temp password in chat history" problem. |
 | 2026-05-27 | `fix/sidebar-presence` | 3 | +9 | -6 | 1 | Lower desktop sidebar breakpoint from lg (1024px) to sm (640px) so it stays visible at typical split-screen widths instead of collapsing to hamburger. Match hamburger trigger + drawer at the same breakpoint. Bump nav-item height 28 → 32px so the sidebar fills more vertically (matches the Vercel reference). |
 | 2026-05-27 | `feat/bigger-logo` | 1 | +3 | -3 | 1 | Bump Zarco mark + wordmark in sidebar top-left (20→28px ring, 14.5→18px wordmark) per user feedback. |
+| 2026-05-27 | `fix/dashboard-mcp-card` | 1 | +118 | -22 | 1 | Make the "From Claude" dashboard card dynamic. Query oauth_access_tokens for live connection count + activities.source='mcp' over last 7 days. Show real numbers when ≥1 client connected (replaces the misleading "Connect a Claude client" CTA); keep the setup CTA only when 0. |
 
 ## Running totals (cumulative, since `main`)
 
@@ -49,7 +50,8 @@ one, not main).
 | `feat/password-auth` | +99 | Merged to main in PR #5 — replaces magic-link sign-in with email + password |
 | `feat/settings-pages` | +781 | Merged to main in PR #6 — populates the settings area (profile + change password, workspace stub, team stub, landing) |
 | `fix/sidebar-presence` | +3 | Merged to main in PR #7 — sidebar visible at sm+ instead of lg+ and slightly taller nav items |
-| `feat/bigger-logo` | +0 | Off main, current branch — visual tweak only, larger Zarco mark + wordmark |
+| `feat/bigger-logo` | +0 | Merged to main in PR #8 — visual tweak only, larger Zarco mark + wordmark |
+| `fix/dashboard-mcp-card` | +96 | Off main, current branch — dashboard "From Claude" card now reflects real connection status |
 
 Numbers are inflated by the design bundle archived in `docs/design/` (HTML +
 JSX prototypes for reference) — production code is roughly half that.
