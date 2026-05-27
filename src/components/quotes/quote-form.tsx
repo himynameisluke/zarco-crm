@@ -8,15 +8,14 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+import { EntityCombobox } from "@/components/ui/entity-combobox";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { formatMoney } from "@/lib/format";
+import {
+  quickCreateContact,
+  quickCreateDeal,
+  quickCreateOrganization,
+} from "@/app/(app)/quotes/quick-create";
 
 type Option = { id: string; name: string };
 
@@ -79,6 +78,23 @@ export function QuoteForm({
   const [taxRate, setTaxRate] = useState<string>(
     defaultValues?.taxRate ? (Number(defaultValues.taxRate) * 100).toString() : "0",
   );
+
+  // Controlled values for the comboboxes. We also keep newly-created rows
+  // in local state so they show up immediately after a quick-create (the
+  // server-rendered list doesn't refresh until the form action runs).
+  const [selectedOrgId, setSelectedOrgId] = useState<string | null>(
+    defaultValues?.organizationId ?? null,
+  );
+  const [selectedContactId, setSelectedContactId] = useState<string | null>(
+    defaultValues?.contactId ?? null,
+  );
+  const [selectedDealId, setSelectedDealId] = useState<string | null>(
+    defaultValues?.dealId ?? null,
+  );
+  const [orgOptions, setOrgOptions] = useState(organizationOptions);
+  const [contactOpts, setContactOpts] = useState(contactOptions);
+  const [dealOpts, setDealOpts] = useState(dealOptions);
+
   const [state, formAction, pending] = useActionState(action, null);
 
   const totals = useMemo(() => {
@@ -141,61 +157,86 @@ export function QuoteForm({
         </CardHeader>
         <CardContent className="grid gap-4 sm:grid-cols-3">
           <div className="grid gap-2">
-            <Label htmlFor="organizationId">
+            <Label>
               Organization <span className="text-destructive">*</span>
             </Label>
-            <Select
+            <EntityCombobox
               name="organizationId"
-              defaultValue={defaultValues?.organizationId ?? ""}
+              entityNoun="organization"
               required
-            >
-              <SelectTrigger id="organizationId" disabled={pending}>
-                <SelectValue placeholder="Select an organization" />
-              </SelectTrigger>
-              <SelectContent>
-                {organizationOptions.map((o) => (
-                  <SelectItem key={o.id} value={o.id}>
-                    {o.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+              disabled={pending}
+              value={selectedOrgId}
+              onChange={setSelectedOrgId}
+              items={orgOptions.map((o) => ({ id: o.id, label: o.name }))}
+              onCreate={async (q) => {
+                const created = await quickCreateOrganization(q);
+                setOrgOptions((prev) => [
+                  ...prev,
+                  { id: created.id, name: created.label },
+                ]);
+                return created;
+              }}
+            />
           </div>
           <div className="grid gap-2">
-            <Label htmlFor="dealId">
+            <Label>
               Linked deal <span className="text-destructive">*</span>
             </Label>
-            <Select
+            <EntityCombobox
               name="dealId"
-              defaultValue={defaultValues?.dealId ?? ""}
+              entityNoun="deal"
               required
-            >
-              <SelectTrigger id="dealId" disabled={pending}>
-                <SelectValue placeholder="Select a deal" />
-              </SelectTrigger>
-              <SelectContent>
-                {dealOptions.map((d) => (
-                  <SelectItem key={d.id} value={d.id}>
-                    {d.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+              disabled={pending}
+              value={selectedDealId}
+              onChange={setSelectedDealId}
+              items={dealOpts.map((d) => ({ id: d.id, label: d.name }))}
+              createHint={
+                selectedOrgId
+                  ? "Auto-linked to the selected organization. Stage: lead."
+                  : "Stage: lead. Pick an organization first to link it."
+              }
+              onCreate={async (q) => {
+                // selectedOrgId may be null here — that's allowed at the deal
+                // level (deals can be unlinked from an org). The quote itself
+                // still requires both.
+                const created = await quickCreateDeal(
+                  q,
+                  selectedOrgId ?? undefined,
+                );
+                setDealOpts((prev) => [
+                  ...prev,
+                  { id: created.id, name: created.label },
+                ]);
+                return created;
+              }}
+            />
           </div>
           <div className="grid gap-2">
-            <Label htmlFor="contactId">Contact</Label>
-            <Select name="contactId" defaultValue={defaultValues?.contactId ?? ""}>
-              <SelectTrigger id="contactId" disabled={pending}>
-                <SelectValue placeholder="None" />
-              </SelectTrigger>
-              <SelectContent>
-                {contactOptions.map((c) => (
-                  <SelectItem key={c.id} value={c.id}>
-                    {c.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <Label>Contact</Label>
+            <EntityCombobox
+              name="contactId"
+              entityNoun="contact"
+              disabled={pending}
+              value={selectedContactId}
+              onChange={setSelectedContactId}
+              items={contactOpts.map((c) => ({ id: c.id, label: c.name }))}
+              createHint={
+                selectedOrgId
+                  ? "Name will be split into first/last. Auto-linked to the selected organization."
+                  : "Name will be split into first/last. Pick an organization first to link it."
+              }
+              onCreate={async (q) => {
+                const created = await quickCreateContact(
+                  q,
+                  selectedOrgId ?? undefined,
+                );
+                setContactOpts((prev) => [
+                  ...prev,
+                  { id: created.id, name: created.label },
+                ]);
+                return created;
+              }}
+            />
           </div>
         </CardContent>
       </Card>
