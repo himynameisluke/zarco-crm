@@ -30,6 +30,7 @@ one, not main).
 | 2026-05-27 | `feat/bigger-logo` | 1 | +3 | -3 | 1 | Bump Zarco mark + wordmark in sidebar top-left (20→28px ring, 14.5→18px wordmark) per user feedback. |
 | 2026-05-27 | `fix/dashboard-mcp-card` | 1 | +118 | -22 | 1 | Make the "From Claude" dashboard card dynamic. Query oauth_access_tokens for live connection count + activities.source='mcp' over last 7 days. Show real numbers when ≥1 client connected (replaces the misleading "Connect a Claude client" CTA); keep the setup CTA only when 0. |
 | 2026-05-27 | `feat/mcp-tools-expansion` | 6 | +537 | -8 | 1 | Add the tools Luke's Claude flagged as gaps: update_deal (full update, not just stage), update_organization, list_deals + list_contacts + list_organizations + list_tasks (no query string required, with filters), get_pipeline_summary (single-call pipeline snapshot), create_quote + list_quotes + get_quote + update_quote (full quote CRUD). Also extend update_deal_stage with an optional `reason` field that appends to the audit body. Server bumped to v0.4.0. |
+| 2026-05-27 | `fix/dashboard-claude-card-cleanup` | 1 | +30 | -85 | 1 | Drop the 'From Claude' dashboard card when a client is connected (it was dead-weight signalling already-known state). Replace with a small linked pill in the greeting row ('Claude · N writes'). Widen activity+tasks to fill the reclaimed bottom-right slot when connected. CTA card still shows in the not-connected state. |
 
 ## Running totals (cumulative, since `main`)
 
@@ -53,7 +54,8 @@ one, not main).
 | `fix/sidebar-presence` | +3 | Merged to main in PR #7 — sidebar visible at sm+ instead of lg+ and slightly taller nav items |
 | `feat/bigger-logo` | +0 | Merged to main in PR #8 — visual tweak only, larger Zarco mark + wordmark |
 | `fix/dashboard-mcp-card` | +96 | Merged to main in PR #9 — dashboard "From Claude" card now reflects real connection status |
-| `feat/mcp-tools-expansion` | +529 | Off main, current branch — adds the missing MCP tools Luke's Claude session flagged |
+| `feat/mcp-tools-expansion` | +529 | Merged to main in PR #10 — adds the missing MCP tools Luke's Claude session flagged |
+| `fix/dashboard-claude-card-cleanup` | -55 | Off main, current branch — removes the From-Claude card once connected, replaces with a small status pill |
 
 Numbers are inflated by the design bundle archived in `docs/design/` (HTML +
 JSX prototypes for reference) — production code is roughly half that.
