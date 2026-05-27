@@ -6,6 +6,7 @@ import { z } from "zod";
 import { db } from "@/lib/db";
 import { contacts, deals, organizations } from "@/lib/db/schema";
 import { createClient } from "@/lib/supabase/server";
+import { requireCurrentWorkspace } from "@/lib/workspace/current";
 
 // =============================================================================
 // Quick-create server actions for the quote form combobox
@@ -39,9 +40,11 @@ export async function quickCreateOrganization(name: string): Promise<Item> {
   }
 
   const userId = await requireUserId();
+  const workspace = await requireCurrentWorkspace();
   const [row] = await db
     .insert(organizations)
     .values({
+      workspaceId: workspace.id,
       name: parsed.data,
       ownerId: userId,
     })
@@ -79,11 +82,13 @@ export async function quickCreateContact(
   }
 
   const userId = await requireUserId();
+  const workspace = await requireCurrentWorkspace();
   const { first, last } = splitName(parsed.data.name);
 
   const [row] = await db
     .insert(contacts)
     .values({
+      workspaceId: workspace.id,
       firstName: first,
       lastName: last,
       organizationId: parsed.data.organizationId ?? null,
@@ -119,9 +124,11 @@ export async function quickCreateDeal(
   }
 
   const userId = await requireUserId();
+  const workspace = await requireCurrentWorkspace();
   const [row] = await db
     .insert(deals)
     .values({
+      workspaceId: workspace.id,
       name: parsed.data.name,
       stage: "lead",
       type: "sale",

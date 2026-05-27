@@ -35,6 +35,7 @@ import {
   oauthAccessTokens,
   tasks,
 } from "@/lib/db/schema";
+import { requireCurrentWorkspace } from "@/lib/workspace/current";
 import { Topbar } from "@/components/nav/topbar";
 import { formatMoney, formatRelative } from "@/lib/format";
 import {
@@ -398,6 +399,7 @@ function ActivityItem({
 }
 
 export async function Dashboard({ userEmail }: { userEmail: string }) {
+  const workspace = await requireCurrentWorkspace();
   const now = new Date();
   const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
   const startOfTomorrow = new Date(
@@ -415,6 +417,7 @@ export async function Dashboard({ userEmail }: { userEmail: string }) {
       value: sql<number>`coalesce(sum(${deals.valuePence}), 0)::bigint`,
     })
     .from(deals)
+    .where(eq(deals.workspaceId, workspace.id))
     .groupBy(deals.stage);
 
   const stageTotals: Record<DealStage, { value: number; count: number }> = {
@@ -453,7 +456,13 @@ export async function Dashboard({ userEmail }: { userEmail: string }) {
       count: sql<number>`count(*)::int`,
     })
     .from(deals)
-    .where(and(eq(deals.stage, "won"), gte(deals.updatedAt, startOfMonth)));
+    .where(
+      and(
+        eq(deals.workspaceId, workspace.id),
+        eq(deals.stage, "won"),
+        gte(deals.updatedAt, startOfMonth),
+      ),
+    );
 
   const closedAmount = Number(closedThisMonth[0]?.total ?? 0);
   const closedCount = closedThisMonth[0]?.count ?? 0;
@@ -467,6 +476,7 @@ export async function Dashboard({ userEmail }: { userEmail: string }) {
     .from(deals)
     .where(
       and(
+        eq(deals.workspaceId, workspace.id),
         gte(deals.updatedAt, ninetyDaysAgo),
         or(eq(deals.stage, "won"), eq(deals.stage, "lost"))!,
       ),
@@ -491,6 +501,7 @@ export async function Dashboard({ userEmail }: { userEmail: string }) {
       occurredAt: activities.occurredAt,
     })
     .from(activities)
+    .where(eq(activities.workspaceId, workspace.id))
     .orderBy(desc(activities.occurredAt))
     .limit(6);
 
@@ -506,6 +517,7 @@ export async function Dashboard({ userEmail }: { userEmail: string }) {
     .from(tasks)
     .where(
       and(
+        eq(tasks.workspaceId, workspace.id),
         ne(tasks.status, "done"),
         isNotNull(tasks.dueAt),
         gte(tasks.dueAt, now),
@@ -526,6 +538,7 @@ export async function Dashboard({ userEmail }: { userEmail: string }) {
     .from(tasks)
     .where(
       and(
+        eq(tasks.workspaceId, workspace.id),
         ne(tasks.status, "done"),
         isNotNull(tasks.dueAt),
         lt(tasks.dueAt, now),
@@ -553,6 +566,7 @@ export async function Dashboard({ userEmail }: { userEmail: string }) {
     .from(activities)
     .where(
       and(
+        eq(activities.workspaceId, workspace.id),
         eq(activities.source, "mcp"),
         gte(
           activities.occurredAt,

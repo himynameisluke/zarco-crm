@@ -5,6 +5,7 @@ import { Megaphone, MoreHorizontal, Plus } from "lucide-react";
 import { db } from "@/lib/db";
 import { emailCampaigns, emailSends } from "@/lib/db/schema";
 import { requireUser } from "@/lib/auth";
+import { requireCurrentWorkspace } from "@/lib/workspace/current";
 import { Topbar } from "@/components/nav/topbar";
 import { EmptyState } from "@/components/empty-state";
 import { formatRelative } from "@/lib/format";
@@ -16,6 +17,7 @@ import {
 
 export default async function CampaignsPage() {
   await requireUser();
+  const workspace = await requireCurrentWorkspace();
 
   const rows = await db
     .select({
@@ -30,6 +32,7 @@ export default async function CampaignsPage() {
     })
     .from(emailCampaigns)
     .leftJoin(emailSends, eq(emailSends.campaignId, emailCampaigns.id))
+    .where(eq(emailCampaigns.workspaceId, workspace.id))
     .groupBy(emailCampaigns.id)
     .orderBy(desc(emailCampaigns.updatedAt))
     .limit(200);

@@ -1,9 +1,10 @@
-import { asc, desc, eq, ne } from "drizzle-orm";
+import { and, asc, desc, eq, ne } from "drizzle-orm";
 import { ListChecks } from "lucide-react";
 
 import { db } from "@/lib/db";
 import { tasks } from "@/lib/db/schema";
 import { requireUser } from "@/lib/auth";
+import { requireCurrentWorkspace } from "@/lib/workspace/current";
 import { Topbar } from "@/components/nav/topbar";
 import { TaskCheckbox } from "@/components/tasks/task-checkbox";
 import { TaskQuickAdd } from "@/components/tasks/task-quick-add";
@@ -145,6 +146,7 @@ function TaskItem({
 
 export default async function TasksPage() {
   await requireUser();
+  const workspace = await requireCurrentWorkspace();
 
   const now = new Date();
   const startOfTomorrow = new Date(
@@ -171,7 +173,9 @@ export default async function TasksPage() {
       subjectId: tasks.subjectId,
     })
     .from(tasks)
-    .where(ne(tasks.status, "done"))
+    .where(
+      and(eq(tasks.workspaceId, workspace.id), ne(tasks.status, "done")),
+    )
     .orderBy(asc(tasks.dueAt), desc(tasks.createdAt))
     .limit(500)) as TaskRow[];
 
@@ -187,7 +191,9 @@ export default async function TasksPage() {
       subjectId: tasks.subjectId,
     })
     .from(tasks)
-    .where(eq(tasks.status, "done"))
+    .where(
+      and(eq(tasks.workspaceId, workspace.id), eq(tasks.status, "done")),
+    )
     .orderBy(desc(tasks.completedAt))
     .limit(20)) as TaskRow[];
 

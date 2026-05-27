@@ -2,11 +2,12 @@
 
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 
 import { db } from "@/lib/db";
 import { contacts } from "@/lib/db/schema";
 import { requireUser } from "@/lib/auth";
+import { requireCurrentWorkspace } from "@/lib/workspace/current";
 import { contactFormSchema } from "./schema";
 
 function nullable(value: string | undefined | null) {
@@ -17,6 +18,7 @@ function nullable(value: string | undefined | null) {
 
 export async function createContact(_: unknown, formData: FormData) {
   const user = await requireUser();
+  const workspace = await requireCurrentWorkspace();
 
   const parsed = contactFormSchema.safeParse({
     firstName: formData.get("firstName"),
@@ -35,6 +37,7 @@ export async function createContact(_: unknown, formData: FormData) {
   const [inserted] = await db
     .insert(contacts)
     .values({
+      workspaceId: workspace.id,
       firstName: parsed.data.firstName,
       lastName: nullable(parsed.data.lastName),
       email: nullable(parsed.data.email),
@@ -52,6 +55,7 @@ export async function createContact(_: unknown, formData: FormData) {
 
 export async function updateContact(id: string, _: unknown, formData: FormData) {
   await requireUser();
+  const workspace = await requireCurrentWorkspace();
 
   const parsed = contactFormSchema.safeParse({
     firstName: formData.get("firstName"),
@@ -79,7 +83,9 @@ export async function updateContact(id: string, _: unknown, formData: FormData) 
       notes: nullable(parsed.data.notes),
       updatedAt: new Date(),
     })
-    .where(eq(contacts.id, id));
+    .where(
+      and(eq(contacts.id, id), eq(contacts.workspaceId, workspace.id)),
+    );
 
   revalidatePath("/contacts");
   revalidatePath(`/contacts/${id}`);
@@ -88,7 +94,12 @@ export async function updateContact(id: string, _: unknown, formData: FormData) 
 
 export async function deleteContact(id: string) {
   await requireUser();
-  await db.delete(contacts).where(eq(contacts.id, id));
+  const workspace = await requireCurrentWorkspace();
+  await db
+    .delete(contacts)
+    .where(
+      and(eq(contacts.id, id), eq(contacts.workspaceId, workspace.id)),
+    );
   revalidatePath("/contacts");
   redirect("/contacts");
 }

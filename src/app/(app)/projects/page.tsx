@@ -5,6 +5,7 @@ import { Layers, MoreHorizontal, Plus } from "lucide-react";
 import { db } from "@/lib/db";
 import { deals, projects } from "@/lib/db/schema";
 import { requireUser } from "@/lib/auth";
+import { requireCurrentWorkspace } from "@/lib/workspace/current";
 import { Topbar } from "@/components/nav/topbar";
 import { EmptyState } from "@/components/empty-state";
 import { formatDateShort, formatRelative } from "@/lib/format";
@@ -16,6 +17,7 @@ import {
 
 export default async function ProjectsPage() {
   await requireUser();
+  const workspace = await requireCurrentWorkspace();
 
   const rows = await db
     .select({
@@ -30,6 +32,7 @@ export default async function ProjectsPage() {
     })
     .from(projects)
     .leftJoin(deals, eq(projects.dealId, deals.id))
+    .where(eq(projects.workspaceId, workspace.id))
     .orderBy(desc(projects.updatedAt))
     .limit(200);
 

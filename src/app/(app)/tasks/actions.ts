@@ -1,12 +1,13 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { z } from "zod";
 
 import { db } from "@/lib/db";
 import { tasks } from "@/lib/db/schema";
 import { requireUser } from "@/lib/auth";
+import { requireCurrentWorkspace } from "@/lib/workspace/current";
 
 const quickAddSchema = z.object({
   title: z.string().trim().min(1, "Title is required").max(500),
@@ -20,6 +21,7 @@ const quickAddSchema = z.object({
 
 export async function createTaskQuick(_: unknown, formData: FormData) {
   const user = await requireUser();
+  const workspace = await requireCurrentWorkspace();
   const parsed = quickAddSchema.safeParse({
     title: formData.get("title"),
     dueAt: formData.get("dueAt"),
@@ -34,6 +36,7 @@ export async function createTaskQuick(_: unknown, formData: FormData) {
       : null;
 
   await db.insert(tasks).values({
+    workspaceId: workspace.id,
     title: parsed.data.title,
     status: "todo",
     dueAt,
@@ -48,6 +51,7 @@ export async function createTaskQuick(_: unknown, formData: FormData) {
 
 export async function toggleTaskDone(id: string, currentStatus: string) {
   await requireUser();
+  const workspace = await requireCurrentWorkspace();
   const nextStatus = currentStatus === "done" ? "todo" : "done";
   const completedAt = nextStatus === "done" ? new Date() : null;
   await db
@@ -57,14 +61,17 @@ export async function toggleTaskDone(id: string, currentStatus: string) {
       completedAt,
       updatedAt: new Date(),
     })
-    .where(eq(tasks.id, id));
+    .where(and(eq(tasks.id, id), eq(tasks.workspaceId, workspace.id)));
   revalidatePath("/tasks");
   revalidatePath("/");
 }
 
 export async function deleteTask(id: string) {
   await requireUser();
-  await db.delete(tasks).where(eq(tasks.id, id));
+  const workspace = await requireCurrentWorkspace();
+  await db
+    .delete(tasks)
+    .where(and(eq(tasks.id, id), eq(tasks.workspaceId, workspace.id)));
   revalidatePath("/tasks");
   revalidatePath("/");
 }

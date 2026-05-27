@@ -5,6 +5,7 @@ import { FileText, MoreHorizontal, Plus } from "lucide-react";
 import { db } from "@/lib/db";
 import { organizations, quotes } from "@/lib/db/schema";
 import { requireUser } from "@/lib/auth";
+import { requireCurrentWorkspace } from "@/lib/workspace/current";
 import { Topbar } from "@/components/nav/topbar";
 import { EmptyState } from "@/components/empty-state";
 import { formatDateShort, formatMoney, formatRelative } from "@/lib/format";
@@ -16,6 +17,7 @@ import {
 
 export default async function QuotesPage() {
   await requireUser();
+  const workspace = await requireCurrentWorkspace();
 
   const rows = await db
     .select({
@@ -32,6 +34,7 @@ export default async function QuotesPage() {
     })
     .from(quotes)
     .leftJoin(organizations, eq(quotes.organizationId, organizations.id))
+    .where(eq(quotes.workspaceId, workspace.id))
     .orderBy(desc(quotes.updatedAt))
     .limit(200);
 

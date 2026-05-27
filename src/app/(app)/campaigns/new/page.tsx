@@ -1,9 +1,10 @@
-import { desc, sql } from "drizzle-orm";
+import { desc, eq, sql } from "drizzle-orm";
 import { Megaphone } from "lucide-react";
 
 import { db } from "@/lib/db";
 import { contacts, organizations } from "@/lib/db/schema";
 import { requireUser } from "@/lib/auth";
+import { requireCurrentWorkspace } from "@/lib/workspace/current";
 import { Topbar } from "@/components/nav/topbar";
 import { CampaignForm } from "@/components/campaigns/campaign-form";
 import { createCampaign } from "../actions";
@@ -12,6 +13,7 @@ const DEFAULT_FROM = "hello@zarco.uk";
 
 export default async function NewCampaignPage() {
   await requireUser();
+  const workspace = await requireCurrentWorkspace();
 
   // Only show orgs that have at least one contact with an email — otherwise
   // there's nothing to send to.
@@ -26,6 +28,7 @@ export default async function NewCampaignPage() {
       contacts,
       sql`${contacts.organizationId} = ${organizations.id} AND ${contacts.email} IS NOT NULL`,
     )
+    .where(eq(organizations.workspaceId, workspace.id))
     .groupBy(organizations.id)
     .having(sql`count(${contacts.id}) > 0`)
     .orderBy(desc(organizations.updatedAt))

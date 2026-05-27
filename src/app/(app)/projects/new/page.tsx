@@ -1,19 +1,22 @@
-import { desc } from "drizzle-orm";
+import { desc, eq } from "drizzle-orm";
 import { Layers } from "lucide-react";
 
 import { db } from "@/lib/db";
 import { deals } from "@/lib/db/schema";
 import { requireUser } from "@/lib/auth";
+import { requireCurrentWorkspace } from "@/lib/workspace/current";
 import { Topbar } from "@/components/nav/topbar";
 import { ProjectForm } from "@/components/projects/project-form";
 import { createProject } from "../actions";
 
 export default async function NewProjectPage() {
   await requireUser();
+  const workspace = await requireCurrentWorkspace();
 
   const dealOptions = await db
     .select({ id: deals.id, name: deals.name })
     .from(deals)
+    .where(eq(deals.workspaceId, workspace.id))
     .orderBy(desc(deals.updatedAt))
     .limit(200);
 

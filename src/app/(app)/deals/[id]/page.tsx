@@ -21,6 +21,7 @@ import {
   quotes,
 } from "@/lib/db/schema";
 import { requireUser } from "@/lib/auth";
+import { requireCurrentWorkspace } from "@/lib/workspace/current";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -84,6 +85,7 @@ export default async function DealDetailPage({
   params: Promise<{ id: string }>;
 }) {
   await requireUser();
+  const workspace = await requireCurrentWorkspace();
   const { id } = await params;
 
   const [deal] = await db
@@ -103,7 +105,7 @@ export default async function DealDetailPage({
     })
     .from(deals)
     .leftJoin(organizations, eq(deals.organizationId, organizations.id))
-    .where(eq(deals.id, id))
+    .where(and(eq(deals.id, id), eq(deals.workspaceId, workspace.id)))
     .limit(1);
 
   if (!deal) {
@@ -115,20 +117,33 @@ export default async function DealDetailPage({
       ? db
           .select()
           .from(contacts)
-          .where(eq(contacts.id, deal.primaryContactId))
+          .where(
+            and(
+              eq(contacts.id, deal.primaryContactId),
+              eq(contacts.workspaceId, workspace.id),
+            ),
+          )
           .limit(1)
           .then((rows) => rows[0] ?? null)
       : Promise.resolve(null),
     db
       .select()
       .from(activities)
-      .where(and(eq(activities.subjectType, "deal"), eq(activities.subjectId, id)))
+      .where(
+        and(
+          eq(activities.workspaceId, workspace.id),
+          eq(activities.subjectType, "deal"),
+          eq(activities.subjectId, id),
+        ),
+      )
       .orderBy(desc(activities.occurredAt))
       .limit(20),
     db
       .select()
       .from(quotes)
-      .where(eq(quotes.dealId, id))
+      .where(
+        and(eq(quotes.workspaceId, workspace.id), eq(quotes.dealId, id)),
+      )
       .orderBy(desc(quotes.createdAt))
       .limit(20),
   ]);

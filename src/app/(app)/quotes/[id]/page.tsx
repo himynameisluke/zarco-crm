@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { asc, eq } from "drizzle-orm";
+import { and, asc, eq } from "drizzle-orm";
 import { headers } from "next/headers";
 import { Download, FileText, Pencil } from "lucide-react";
 
@@ -13,6 +13,7 @@ import {
   quotes,
 } from "@/lib/db/schema";
 import { requireUser } from "@/lib/auth";
+import { requireCurrentWorkspace } from "@/lib/workspace/current";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -48,6 +49,7 @@ export default async function QuoteDetailPage({
   params: Promise<{ id: string }>;
 }) {
   await requireUser();
+  const workspace = await requireCurrentWorkspace();
   const { id } = await params;
   const baseUrl = await getBaseUrl();
 
@@ -80,7 +82,7 @@ export default async function QuoteDetailPage({
     .leftJoin(organizations, eq(quotes.organizationId, organizations.id))
     .leftJoin(contacts, eq(quotes.contactId, contacts.id))
     .leftJoin(deals, eq(quotes.dealId, deals.id))
-    .where(eq(quotes.id, id))
+    .where(and(eq(quotes.id, id), eq(quotes.workspaceId, workspace.id)))
     .limit(1);
 
   if (!quote) {
@@ -90,7 +92,12 @@ export default async function QuoteDetailPage({
   const items = await db
     .select()
     .from(quoteLineItems)
-    .where(eq(quoteLineItems.quoteId, id))
+    .where(
+      and(
+        eq(quoteLineItems.quoteId, id),
+        eq(quoteLineItems.workspaceId, workspace.id),
+      ),
+    )
     .orderBy(asc(quoteLineItems.sortOrder));
 
   const publicUrl = `${baseUrl}/q/${quote.publicToken}`;

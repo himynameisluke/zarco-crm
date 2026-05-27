@@ -1,12 +1,13 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { z } from "zod";
 
 import { db } from "@/lib/db";
 import { activities, inboxItems } from "@/lib/db/schema";
 import { requireUser } from "@/lib/auth";
+import { requireCurrentWorkspace } from "@/lib/workspace/current";
 
 const SUBJECT_TYPES = ["contact", "organization", "deal", "project"] as const;
 const ACTIVITY_TYPES = [
@@ -25,6 +26,7 @@ const processSchema = z.object({
 
 export async function processInboxItem(_: unknown, formData: FormData) {
   const user = await requireUser();
+  const workspace = await requireCurrentWorkspace();
   const parsed = processSchema.safeParse({
     itemId: formData.get("itemId"),
     subjectType: formData.get("subjectType"),
@@ -38,7 +40,12 @@ export async function processInboxItem(_: unknown, formData: FormData) {
   const [item] = await db
     .select()
     .from(inboxItems)
-    .where(eq(inboxItems.id, parsed.data.itemId))
+    .where(
+      and(
+        eq(inboxItems.id, parsed.data.itemId),
+        eq(inboxItems.workspaceId, workspace.id),
+      ),
+    )
     .limit(1);
 
   if (!item) {
@@ -51,6 +58,7 @@ export async function processInboxItem(_: unknown, formData: FormData) {
   const [activity] = await db
     .insert(activities)
     .values({
+      workspaceId: workspace.id,
       type: parsed.data.activityType,
       // Granola/MCP-sourced items keep their original source; manual triage from
       // outlook/resend collapses to email_sync/system in the activity record.
@@ -79,7 +87,12 @@ export async function processInboxItem(_: unknown, formData: FormData) {
       processedAt: new Date(),
       processedIntoActivityId: activity.id,
     })
-    .where(eq(inboxItems.id, parsed.data.itemId));
+    .where(
+      and(
+        eq(inboxItems.id, parsed.data.itemId),
+        eq(inboxItems.workspaceId, workspace.id),
+      ),
+    );
 
   revalidatePath("/inbox");
   revalidatePath("/activity");
@@ -89,20 +102,32 @@ export async function processInboxItem(_: unknown, formData: FormData) {
 
 export async function dismissInboxItem(id: string) {
   await requireUser();
+  const workspace = await requireCurrentWorkspace();
   await db
     .update(inboxItems)
     .set({ status: "dismissed", processedAt: new Date() })
-    .where(eq(inboxItems.id, id));
+    .where(
+      and(
+        eq(inboxItems.id, id),
+        eq(inboxItems.workspaceId, workspace.id),
+      ),
+    );
   revalidatePath("/inbox");
   revalidatePath("/");
 }
 
 export async function undismissInboxItem(id: string) {
   await requireUser();
+  const workspace = await requireCurrentWorkspace();
   await db
     .update(inboxItems)
     .set({ status: "pending", processedAt: null })
-    .where(eq(inboxItems.id, id));
+    .where(
+      and(
+        eq(inboxItems.id, id),
+        eq(inboxItems.workspaceId, workspace.id),
+      ),
+    );
   revalidatePath("/inbox");
 }
 
@@ -113,7 +138,9 @@ export async function undismissInboxItem(id: string) {
  */
 export async function seedSampleInboxItem() {
   await requireUser();
+  const workspace = await requireCurrentWorkspace();
   await db.insert(inboxItems).values({
+    workspaceId: workspace.id,
     type: "transcript",
     source: "granola",
     title: "Discovery call · Acme Foods (sample)",

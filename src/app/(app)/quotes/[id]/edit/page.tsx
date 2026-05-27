@@ -1,5 +1,5 @@
 import { notFound } from "next/navigation";
-import { asc, desc, eq } from "drizzle-orm";
+import { and, asc, desc, eq } from "drizzle-orm";
 import { FileText } from "lucide-react";
 
 import { db } from "@/lib/db";
@@ -11,6 +11,7 @@ import {
   quotes,
 } from "@/lib/db/schema";
 import { requireUser } from "@/lib/auth";
+import { requireCurrentWorkspace } from "@/lib/workspace/current";
 import { Topbar } from "@/components/nav/topbar";
 import { QuoteForm } from "@/components/quotes/quote-form";
 import { updateQuote } from "../../actions";
@@ -26,23 +27,36 @@ export default async function EditQuotePage({
   params: Promise<{ id: string }>;
 }) {
   await requireUser();
+  const workspace = await requireCurrentWorkspace();
   const { id } = await params;
 
   const [quote, lineItems, orgOptions, dealOptions, contactRows] = await Promise.all([
-    db.select().from(quotes).where(eq(quotes.id, id)).limit(1).then((r) => r[0]),
+    db
+      .select()
+      .from(quotes)
+      .where(and(eq(quotes.id, id), eq(quotes.workspaceId, workspace.id)))
+      .limit(1)
+      .then((r) => r[0]),
     db
       .select()
       .from(quoteLineItems)
-      .where(eq(quoteLineItems.quoteId, id))
+      .where(
+        and(
+          eq(quoteLineItems.quoteId, id),
+          eq(quoteLineItems.workspaceId, workspace.id),
+        ),
+      )
       .orderBy(asc(quoteLineItems.sortOrder)),
     db
       .select({ id: organizations.id, name: organizations.name })
       .from(organizations)
+      .where(eq(organizations.workspaceId, workspace.id))
       .orderBy(desc(organizations.updatedAt))
       .limit(200),
     db
       .select({ id: deals.id, name: deals.name })
       .from(deals)
+      .where(eq(deals.workspaceId, workspace.id))
       .orderBy(desc(deals.updatedAt))
       .limit(200),
     db
@@ -53,6 +67,7 @@ export default async function EditQuotePage({
         email: contacts.email,
       })
       .from(contacts)
+      .where(eq(contacts.workspaceId, workspace.id))
       .orderBy(desc(contacts.updatedAt))
       .limit(200),
   ]);

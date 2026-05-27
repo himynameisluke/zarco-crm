@@ -11,6 +11,7 @@ import {
   projects,
   quotes,
 } from "@/lib/db/schema";
+import { getPrimaryWorkspaceIdForUser } from "@/lib/workspace/current";
 import { auditMcpWrite } from "../audit";
 import { getMcpContext, textResult } from "../context";
 
@@ -198,9 +199,14 @@ export function registerDealTools(server: McpServer) {
     },
     async (input, { authInfo }) => {
       const { userId } = getMcpContext(authInfo);
+      const workspaceId = await getPrimaryWorkspaceIdForUser(userId);
+      if (!workspaceId) {
+        throw new Error("User has no workspace; cannot create deal");
+      }
       const [inserted] = await db
         .insert(deals)
         .values({
+          workspaceId,
           name: input.name,
           type: input.type,
           stage: input.stage,

@@ -5,6 +5,7 @@ import { Briefcase, Filter, Plus, Sparkles, SquareKanban } from "lucide-react";
 import { db } from "@/lib/db";
 import { contacts, deals, organizations } from "@/lib/db/schema";
 import { requireUser } from "@/lib/auth";
+import { requireCurrentWorkspace } from "@/lib/workspace/current";
 import { Topbar } from "@/components/nav/topbar";
 import { EmptyState } from "@/components/empty-state";
 import { KanbanBoard } from "@/components/deals/kanban-board";
@@ -12,6 +13,7 @@ import { formatMoney } from "@/lib/format";
 
 export default async function DealsPage() {
   await requireUser();
+  const workspace = await requireCurrentWorkspace();
 
   const rows = await db
     .select({
@@ -30,6 +32,7 @@ export default async function DealsPage() {
     .from(deals)
     .leftJoin(organizations, eq(deals.organizationId, organizations.id))
     .leftJoin(contacts, eq(deals.primaryContactId, contacts.id))
+    .where(eq(deals.workspaceId, workspace.id))
     .orderBy(desc(deals.updatedAt))
     .limit(500);
 

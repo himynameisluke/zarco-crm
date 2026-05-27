@@ -6,6 +6,7 @@ import { z } from "zod";
 import { db } from "@/lib/db";
 import { activities } from "@/lib/db/schema";
 import { requireUser } from "@/lib/auth";
+import { requireCurrentWorkspace } from "@/lib/workspace/current";
 
 const SUBJECT_TYPES = ["contact", "organization", "deal", "project"] as const;
 const LOGGABLE_TYPES = ["note", "call", "meeting", "email"] as const;
@@ -20,6 +21,7 @@ const composerSchema = z.object({
 
 export async function logManualActivity(_: unknown, formData: FormData) {
   const user = await requireUser();
+  const workspace = await requireCurrentWorkspace();
   const parsed = composerSchema.safeParse({
     subjectType: formData.get("subjectType"),
     subjectId: formData.get("subjectId"),
@@ -33,6 +35,7 @@ export async function logManualActivity(_: unknown, formData: FormData) {
   }
 
   await db.insert(activities).values({
+    workspaceId: workspace.id,
     type: parsed.data.type,
     source: "manual",
     subjectType: parsed.data.subjectType,

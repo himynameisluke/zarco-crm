@@ -1,10 +1,11 @@
 import { notFound } from "next/navigation";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { Users } from "lucide-react";
 
 import { db } from "@/lib/db";
 import { contacts } from "@/lib/db/schema";
 import { requireUser } from "@/lib/auth";
+import { requireCurrentWorkspace } from "@/lib/workspace/current";
 import { Topbar } from "@/components/nav/topbar";
 import { ContactForm } from "@/components/contacts/contact-form";
 import { updateContact } from "../../actions";
@@ -15,9 +16,14 @@ export default async function EditContactPage({
   params: Promise<{ id: string }>;
 }) {
   await requireUser();
+  const workspace = await requireCurrentWorkspace();
   const { id } = await params;
 
-  const [contact] = await db.select().from(contacts).where(eq(contacts.id, id)).limit(1);
+  const [contact] = await db
+    .select()
+    .from(contacts)
+    .where(and(eq(contacts.id, id), eq(contacts.workspaceId, workspace.id)))
+    .limit(1);
 
   if (!contact) {
     notFound();

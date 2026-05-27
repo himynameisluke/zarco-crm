@@ -4,6 +4,7 @@ import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 
 import { db } from "@/lib/db";
 import { activities } from "@/lib/db/schema";
+import { getPrimaryWorkspaceIdForUser } from "@/lib/workspace/current";
 import { getMcpContext, textResult } from "../context";
 
 const LOGGABLE_TYPES = [
@@ -178,10 +179,15 @@ export function registerActivityTools(server: McpServer) {
     async (input, { authInfo }) => {
       const { userId } = getMcpContext(authInfo);
       const occurredAt = input.occurredAt ? new Date(input.occurredAt) : new Date();
+      const workspaceId = await getPrimaryWorkspaceIdForUser(userId);
+      if (!workspaceId) {
+        throw new Error("User has no workspace; cannot log activity");
+      }
 
       const [inserted] = await db
         .insert(activities)
         .values({
+          workspaceId,
           type: input.type,
           source: "mcp",
           subjectType: input.subjectType,

@@ -1,10 +1,11 @@
-import { desc, eq, sql } from "drizzle-orm";
+import { and, desc, eq, sql } from "drizzle-orm";
 import { headers } from "next/headers";
 import { Inbox, Mail, Plug, Send, Sparkles, Zap } from "lucide-react";
 
 import { db } from "@/lib/db";
 import { activities, oauthAccessTokens, oauthClients } from "@/lib/db/schema";
 import { requireUser } from "@/lib/auth";
+import { requireCurrentWorkspace } from "@/lib/workspace/current";
 import { Topbar } from "@/components/nav/topbar";
 import { CopyButton } from "@/components/settings/copy-button";
 import { RevokeClientButton } from "@/components/settings/revoke-client-button";
@@ -22,6 +23,7 @@ async function getBaseUrl(): Promise<string> {
 
 export default async function MCPSettingsPage() {
   await requireUser();
+  const workspace = await requireCurrentWorkspace();
   const baseUrl = await getBaseUrl();
   const mcpUrl = `${baseUrl}/mcp`;
 
@@ -55,7 +57,12 @@ export default async function MCPSettingsPage() {
       occurredAt: activities.occurredAt,
     })
     .from(activities)
-    .where(eq(activities.source, "mcp"))
+    .where(
+      and(
+        eq(activities.workspaceId, workspace.id),
+        eq(activities.source, "mcp"),
+      ),
+    )
     .orderBy(desc(activities.occurredAt))
     .limit(20);
 

@@ -1,10 +1,11 @@
 import { notFound } from "next/navigation";
-import { desc, eq } from "drizzle-orm";
+import { and, desc, eq } from "drizzle-orm";
 import { Layers } from "lucide-react";
 
 import { db } from "@/lib/db";
 import { deals, projects } from "@/lib/db/schema";
 import { requireUser } from "@/lib/auth";
+import { requireCurrentWorkspace } from "@/lib/workspace/current";
 import { Topbar } from "@/components/nav/topbar";
 import { ProjectForm } from "@/components/projects/project-form";
 import { updateProject } from "../../actions";
@@ -15,13 +16,22 @@ export default async function EditProjectPage({
   params: Promise<{ id: string }>;
 }) {
   await requireUser();
+  const workspace = await requireCurrentWorkspace();
   const { id } = await params;
 
   const [project, dealOptions] = await Promise.all([
-    db.select().from(projects).where(eq(projects.id, id)).limit(1).then((r) => r[0]),
+    db
+      .select()
+      .from(projects)
+      .where(
+        and(eq(projects.id, id), eq(projects.workspaceId, workspace.id)),
+      )
+      .limit(1)
+      .then((r) => r[0]),
     db
       .select({ id: deals.id, name: deals.name })
       .from(deals)
+      .where(eq(deals.workspaceId, workspace.id))
       .orderBy(desc(deals.updatedAt))
       .limit(200),
   ]);
