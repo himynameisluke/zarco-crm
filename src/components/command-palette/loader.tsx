@@ -1,7 +1,8 @@
-import { desc } from "drizzle-orm";
+import { desc, eq } from "drizzle-orm";
 
 import { db } from "@/lib/db";
 import { contacts, deals, organizations } from "@/lib/db/schema";
+import { getCurrentWorkspace } from "@/lib/workspace/current";
 import {
   CommandPalette,
   type PaletteEntity,
@@ -21,6 +22,10 @@ function contactName(c: { firstName: string | null; lastName: string | null }) {
  * navigates to the relevant list page.
  */
 export async function CommandPaletteLoader() {
+  const workspace = await getCurrentWorkspace();
+  if (!workspace) {
+    return <CommandPalette entities={[]} />;
+  }
   const [recentContacts, recentOrgs, recentDeals] = await Promise.all([
     db
       .select({
@@ -30,6 +35,7 @@ export async function CommandPaletteLoader() {
         email: contacts.email,
       })
       .from(contacts)
+      .where(eq(contacts.workspaceId, workspace.id))
       .orderBy(desc(contacts.updatedAt))
       .limit(10),
     db
@@ -39,6 +45,7 @@ export async function CommandPaletteLoader() {
         domain: organizations.domain,
       })
       .from(organizations)
+      .where(eq(organizations.workspaceId, workspace.id))
       .orderBy(desc(organizations.updatedAt))
       .limit(10),
     db
@@ -50,6 +57,7 @@ export async function CommandPaletteLoader() {
         stage: deals.stage,
       })
       .from(deals)
+      .where(eq(deals.workspaceId, workspace.id))
       .orderBy(desc(deals.updatedAt))
       .limit(10),
   ]);

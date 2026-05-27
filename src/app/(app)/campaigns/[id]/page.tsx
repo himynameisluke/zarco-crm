@@ -1,11 +1,12 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { desc, eq, sql } from "drizzle-orm";
+import { and, desc, eq, sql } from "drizzle-orm";
 import { Megaphone, Pencil } from "lucide-react";
 
 import { db } from "@/lib/db";
 import { contacts, emailCampaigns, emailSends } from "@/lib/db/schema";
 import { requireUser } from "@/lib/auth";
+import { requireCurrentWorkspace } from "@/lib/workspace/current";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -34,12 +35,18 @@ export default async function CampaignDetailPage({
   params: Promise<{ id: string }>;
 }) {
   await requireUser();
+  const workspace = await requireCurrentWorkspace();
   const { id } = await params;
 
   const [campaign] = await db
     .select()
     .from(emailCampaigns)
-    .where(eq(emailCampaigns.id, id))
+    .where(
+      and(
+        eq(emailCampaigns.id, id),
+        eq(emailCampaigns.workspaceId, workspace.id),
+      ),
+    )
     .limit(1);
 
   if (!campaign) {
@@ -58,7 +65,12 @@ export default async function CampaignDetailPage({
     })
     .from(emailSends)
     .leftJoin(contacts, eq(emailSends.contactId, contacts.id))
-    .where(eq(emailSends.campaignId, id))
+    .where(
+      and(
+        eq(emailSends.workspaceId, workspace.id),
+        eq(emailSends.campaignId, id),
+      ),
+    )
     .orderBy(desc(emailSends.sentAt))
     .limit(500);
 
@@ -68,7 +80,12 @@ export default async function CampaignDetailPage({
       count: sql<number>`count(*)::int`,
     })
     .from(emailSends)
-    .where(eq(emailSends.campaignId, id))
+    .where(
+      and(
+        eq(emailSends.workspaceId, workspace.id),
+        eq(emailSends.campaignId, id),
+      ),
+    )
     .groupBy(emailSends.status);
 
   const statsByStatus: Record<string, number> = {};

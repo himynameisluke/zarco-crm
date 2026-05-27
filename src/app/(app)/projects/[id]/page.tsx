@@ -10,6 +10,7 @@ import {
 import { db } from "@/lib/db";
 import { activities, deals, projects } from "@/lib/db/schema";
 import { requireUser } from "@/lib/auth";
+import { requireCurrentWorkspace } from "@/lib/workspace/current";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -36,6 +37,7 @@ export default async function ProjectDetailPage({
   params: Promise<{ id: string }>;
 }) {
   await requireUser();
+  const workspace = await requireCurrentWorkspace();
   const { id } = await params;
 
   const [project] = await db
@@ -53,7 +55,9 @@ export default async function ProjectDetailPage({
     })
     .from(projects)
     .leftJoin(deals, eq(projects.dealId, deals.id))
-    .where(eq(projects.id, id))
+    .where(
+      and(eq(projects.id, id), eq(projects.workspaceId, workspace.id)),
+    )
     .limit(1);
 
   if (!project) {
@@ -64,7 +68,11 @@ export default async function ProjectDetailPage({
     .select()
     .from(activities)
     .where(
-      and(eq(activities.subjectType, "project"), eq(activities.subjectId, id)),
+      and(
+        eq(activities.workspaceId, workspace.id),
+        eq(activities.subjectType, "project"),
+        eq(activities.subjectId, id),
+      ),
     )
     .orderBy(desc(activities.occurredAt))
     .limit(20);

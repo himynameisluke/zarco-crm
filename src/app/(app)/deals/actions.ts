@@ -2,11 +2,12 @@
 
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 
 import { db } from "@/lib/db";
 import { deals } from "@/lib/db/schema";
 import { requireUser } from "@/lib/auth";
+import { requireCurrentWorkspace } from "@/lib/workspace/current";
 import { DEAL_STAGES, dealFormSchema, type DealStage } from "./schema";
 
 function nullableUuid(value: FormDataEntryValue | null): string | null {
@@ -44,6 +45,7 @@ function parseFormData(formData: FormData) {
 
 export async function createDeal(_: unknown, formData: FormData) {
   const user = await requireUser();
+  const workspace = await requireCurrentWorkspace();
 
   const parsed = parseFormData(formData);
   if (!parsed.success) {
@@ -53,6 +55,7 @@ export async function createDeal(_: unknown, formData: FormData) {
   const [inserted] = await db
     .insert(deals)
     .values({
+      workspaceId: workspace.id,
       name: parsed.data.name,
       type: parsed.data.type,
       stage: parsed.data.stage,
@@ -70,6 +73,7 @@ export async function createDeal(_: unknown, formData: FormData) {
 
 export async function updateDeal(id: string, _: unknown, formData: FormData) {
   await requireUser();
+  const workspace = await requireCurrentWorkspace();
 
   const parsed = parseFormData(formData);
   if (!parsed.success) {
@@ -88,7 +92,7 @@ export async function updateDeal(id: string, _: unknown, formData: FormData) {
       primaryContactId: nullableUuid(formData.get("primaryContactId")),
       updatedAt: new Date(),
     })
-    .where(eq(deals.id, id));
+    .where(and(eq(deals.id, id), eq(deals.workspaceId, workspace.id)));
 
   revalidatePath("/deals");
   revalidatePath(`/deals/${id}`);
@@ -97,7 +101,10 @@ export async function updateDeal(id: string, _: unknown, formData: FormData) {
 
 export async function deleteDeal(id: string) {
   await requireUser();
-  await db.delete(deals).where(eq(deals.id, id));
+  const workspace = await requireCurrentWorkspace();
+  await db
+    .delete(deals)
+    .where(and(eq(deals.id, id), eq(deals.workspaceId, workspace.id)));
   revalidatePath("/deals");
   redirect("/deals");
 }
@@ -105,13 +112,14 @@ export async function deleteDeal(id: string) {
 /** Update only the stage of a deal — used by the inline stage selector on the detail page. */
 export async function updateDealStage(id: string, stage: string) {
   await requireUser();
+  const workspace = await requireCurrentWorkspace();
   if (!isDealStage(stage)) {
     throw new Error(`Invalid stage: ${stage}`);
   }
   await db
     .update(deals)
     .set({ stage, updatedAt: new Date() })
-    .where(eq(deals.id, id));
+    .where(and(eq(deals.id, id), eq(deals.workspaceId, workspace.id)));
   revalidatePath("/deals");
   revalidatePath(`/deals/${id}`);
 }

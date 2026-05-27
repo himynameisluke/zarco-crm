@@ -14,6 +14,7 @@ import {
 import { db } from "@/lib/db";
 import { contacts, activities } from "@/lib/db/schema";
 import { requireUser } from "@/lib/auth";
+import { requireCurrentWorkspace } from "@/lib/workspace/current";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
@@ -62,9 +63,14 @@ export default async function ContactDetailPage({
   params: Promise<{ id: string }>;
 }) {
   await requireUser();
+  const workspace = await requireCurrentWorkspace();
   const { id } = await params;
 
-  const [contact] = await db.select().from(contacts).where(eq(contacts.id, id)).limit(1);
+  const [contact] = await db
+    .select()
+    .from(contacts)
+    .where(and(eq(contacts.id, id), eq(contacts.workspaceId, workspace.id)))
+    .limit(1);
 
   if (!contact) {
     notFound();
@@ -73,7 +79,13 @@ export default async function ContactDetailPage({
   const timeline = await db
     .select()
     .from(activities)
-    .where(and(eq(activities.subjectType, "contact"), eq(activities.subjectId, id)))
+    .where(
+      and(
+        eq(activities.workspaceId, workspace.id),
+        eq(activities.subjectType, "contact"),
+        eq(activities.subjectId, id),
+      ),
+    )
     .orderBy(desc(activities.occurredAt))
     .limit(50);
 

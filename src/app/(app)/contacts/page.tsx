@@ -16,6 +16,7 @@ import {
 import { db } from "@/lib/db";
 import { activities, contacts, deals, organizations } from "@/lib/db/schema";
 import { requireUser } from "@/lib/auth";
+import { requireCurrentWorkspace } from "@/lib/workspace/current";
 import { Topbar } from "@/components/nav/topbar";
 import { EmptyState } from "@/components/empty-state";
 import { colorFromString } from "@/lib/colors";
@@ -27,6 +28,7 @@ function fullName(c: { firstName: string | null; lastName: string | null }) {
 
 export default async function ContactsPage() {
   await requireUser();
+  const workspace = await requireCurrentWorkspace();
 
   const rows = await db
     .select({
@@ -49,6 +51,7 @@ export default async function ContactsPage() {
       activities,
       sql`${activities.subjectType} = 'contact' AND ${activities.subjectId} = ${contacts.id}`,
     )
+    .where(eq(contacts.workspaceId, workspace.id))
     .groupBy(contacts.id, organizations.name)
     .orderBy(desc(contacts.updatedAt))
     .limit(200);

@@ -1,4 +1,4 @@
-import { desc, eq } from "drizzle-orm";
+import { and, desc, eq } from "drizzle-orm";
 import { Inbox, Plus } from "lucide-react";
 
 import { db } from "@/lib/db";
@@ -10,6 +10,7 @@ import {
   projects,
 } from "@/lib/db/schema";
 import { requireUser } from "@/lib/auth";
+import { requireCurrentWorkspace } from "@/lib/workspace/current";
 import { Topbar } from "@/components/nav/topbar";
 import { EmptyState } from "@/components/empty-state";
 import { InboxItemRow } from "@/components/inbox/triage-form";
@@ -23,19 +24,30 @@ function contactName(c: { firstName: string | null; lastName: string | null; ema
 
 export default async function InboxPage() {
   await requireUser();
+  const workspace = await requireCurrentWorkspace();
 
   const [pending, processed, contactRows, orgRows, dealRows, projectRows] =
     await Promise.all([
       db
         .select()
         .from(inboxItems)
-        .where(eq(inboxItems.status, "pending"))
+        .where(
+          and(
+            eq(inboxItems.workspaceId, workspace.id),
+            eq(inboxItems.status, "pending"),
+          ),
+        )
         .orderBy(desc(inboxItems.receivedAt))
         .limit(100),
       db
         .select()
         .from(inboxItems)
-        .where(eq(inboxItems.status, "processed"))
+        .where(
+          and(
+            eq(inboxItems.workspaceId, workspace.id),
+            eq(inboxItems.status, "processed"),
+          ),
+        )
         .orderBy(desc(inboxItems.processedAt))
         .limit(10),
       db
@@ -46,11 +58,13 @@ export default async function InboxPage() {
           email: contacts.email,
         })
         .from(contacts)
+        .where(eq(contacts.workspaceId, workspace.id))
         .orderBy(desc(contacts.updatedAt))
         .limit(200),
       db
         .select({ id: organizations.id, name: organizations.name })
         .from(organizations)
+        .where(eq(organizations.workspaceId, workspace.id))
         .orderBy(desc(organizations.updatedAt))
         .limit(200),
       db
@@ -62,11 +76,13 @@ export default async function InboxPage() {
           currency: deals.currency,
         })
         .from(deals)
+        .where(eq(deals.workspaceId, workspace.id))
         .orderBy(desc(deals.updatedAt))
         .limit(200),
       db
         .select({ id: projects.id, name: projects.name })
         .from(projects)
+        .where(eq(projects.workspaceId, workspace.id))
         .orderBy(desc(projects.updatedAt))
         .limit(200),
     ]);

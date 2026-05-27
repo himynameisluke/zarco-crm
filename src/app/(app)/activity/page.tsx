@@ -15,6 +15,7 @@ import {
 import { db } from "@/lib/db";
 import { activities, contacts, deals, organizations } from "@/lib/db/schema";
 import { requireUser } from "@/lib/auth";
+import { requireCurrentWorkspace } from "@/lib/workspace/current";
 import { Topbar } from "@/components/nav/topbar";
 import { EmptyState } from "@/components/empty-state";
 import { formatRelative } from "@/lib/format";
@@ -90,6 +91,7 @@ export default async function ActivityPage({
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
   await requireUser();
+  const workspace = await requireCurrentWorkspace();
   const raw = await searchParams;
   const typeFilter =
     typeof raw.type === "string" && isValidType(raw.type) ? raw.type : null;
@@ -98,7 +100,7 @@ export default async function ActivityPage({
       ? raw.source
       : null;
 
-  const conditions = [];
+  const conditions = [eq(activities.workspaceId, workspace.id)];
   if (typeFilter) conditions.push(eq(activities.type, typeFilter));
   if (sourceFilter) conditions.push(eq(activities.source, sourceFilter));
 
@@ -133,7 +135,7 @@ export default async function ActivityPage({
       deals,
       and(eq(activities.subjectType, "deal"), eq(activities.subjectId, deals.id)),
     )
-    .where(conditions.length > 0 ? and(...conditions) : undefined)
+    .where(and(...conditions))
     .orderBy(desc(activities.occurredAt))
     .limit(200);
 

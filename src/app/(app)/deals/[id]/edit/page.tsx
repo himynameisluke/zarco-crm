@@ -1,10 +1,11 @@
 import { notFound } from "next/navigation";
-import { desc, eq } from "drizzle-orm";
+import { and, desc, eq } from "drizzle-orm";
 import { SquareKanban } from "lucide-react";
 
 import { db } from "@/lib/db";
 import { contacts, deals, organizations } from "@/lib/db/schema";
 import { requireUser } from "@/lib/auth";
+import { requireCurrentWorkspace } from "@/lib/workspace/current";
 import { Topbar } from "@/components/nav/topbar";
 import { DealForm } from "@/components/deals/deal-form";
 import { updateDeal } from "../../actions";
@@ -20,13 +21,20 @@ export default async function EditDealPage({
   params: Promise<{ id: string }>;
 }) {
   await requireUser();
+  const workspace = await requireCurrentWorkspace();
   const { id } = await params;
 
   const [deal, orgOptions, contactRows] = await Promise.all([
-    db.select().from(deals).where(eq(deals.id, id)).limit(1).then((r) => r[0]),
+    db
+      .select()
+      .from(deals)
+      .where(and(eq(deals.id, id), eq(deals.workspaceId, workspace.id)))
+      .limit(1)
+      .then((r) => r[0]),
     db
       .select({ id: organizations.id, name: organizations.name })
       .from(organizations)
+      .where(eq(organizations.workspaceId, workspace.id))
       .orderBy(desc(organizations.updatedAt))
       .limit(200),
     db
@@ -37,6 +45,7 @@ export default async function EditDealPage({
         email: contacts.email,
       })
       .from(contacts)
+      .where(eq(contacts.workspaceId, workspace.id))
       .orderBy(desc(contacts.updatedAt))
       .limit(200),
   ]);

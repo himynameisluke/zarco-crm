@@ -4,6 +4,7 @@ import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 
 import { db } from "@/lib/db";
 import { tasks } from "@/lib/db/schema";
+import { getPrimaryWorkspaceIdForUser } from "@/lib/workspace/current";
 import { auditMcpWrite } from "../audit";
 import { getMcpContext, textResult } from "../context";
 
@@ -38,9 +39,15 @@ export function registerTaskTools(server: McpServer) {
         });
       }
 
+      const workspaceId = await getPrimaryWorkspaceIdForUser(userId);
+      if (!workspaceId) {
+        throw new Error("User has no workspace; cannot create task");
+      }
+
       const [inserted] = await db
         .insert(tasks)
         .values({
+          workspaceId,
           title: input.title,
           description: input.description ?? null,
           dueAt: input.dueAt ? new Date(input.dueAt) : null,

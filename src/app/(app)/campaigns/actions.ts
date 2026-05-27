@@ -7,6 +7,7 @@ import { and, eq, isNotNull } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { contacts, emailCampaigns, emailSends } from "@/lib/db/schema";
 import { requireUser } from "@/lib/auth";
+import { requireCurrentWorkspace } from "@/lib/workspace/current";
 import { campaignFormSchema } from "./schema";
 
 function nullable(value: string | undefined | null): string | null {
@@ -28,6 +29,7 @@ function parseForm(formData: FormData) {
 
 export async function createCampaign(_: unknown, formData: FormData) {
   const user = await requireUser();
+  const workspace = await requireCurrentWorkspace();
   const parsed = parseForm(formData);
   if (!parsed.success) {
     return { error: parsed.error.issues[0]?.message ?? "Invalid input" };
@@ -38,6 +40,7 @@ export async function createCampaign(_: unknown, formData: FormData) {
   const [inserted] = await db
     .insert(emailCampaigns)
     .values({
+      workspaceId: workspace.id,
       name: parsed.data.name,
       subject: parsed.data.subject,
       bodyHtml: parsed.data.bodyHtml,
@@ -59,12 +62,17 @@ export async function createCampaign(_: unknown, formData: FormData) {
       })
       .from(contacts)
       .where(
-        and(eq(contacts.organizationId, targetOrgId), isNotNull(contacts.email)),
+        and(
+          eq(contacts.workspaceId, workspace.id),
+          eq(contacts.organizationId, targetOrgId),
+          isNotNull(contacts.email),
+        ),
       );
 
     if (recipients.length > 0) {
       await db.insert(emailSends).values(
         recipients.map((c) => ({
+          workspaceId: workspace.id,
           campaignId: inserted.id,
           contactId: c.id,
           toEmail: c.email!,
@@ -82,6 +90,7 @@ export async function createCampaign(_: unknown, formData: FormData) {
 
 export async function updateCampaign(id: string, _: unknown, formData: FormData) {
   await requireUser();
+  const workspace = await requireCurrentWorkspace();
   const parsed = parseForm(formData);
   if (!parsed.success) {
     return { error: parsed.error.issues[0]?.message ?? "Invalid input" };
@@ -91,7 +100,12 @@ export async function updateCampaign(id: string, _: unknown, formData: FormData)
   const [existing] = await db
     .select({ status: emailCampaigns.status })
     .from(emailCampaigns)
-    .where(eq(emailCampaigns.id, id))
+    .where(
+      and(
+        eq(emailCampaigns.id, id),
+        eq(emailCampaigns.workspaceId, workspace.id),
+      ),
+    )
     .limit(1);
   if (!existing) {
     return { error: "Campaign not found" };
@@ -112,24 +126,40 @@ export async function updateCampaign(id: string, _: unknown, formData: FormData)
       fromName: nullable(parsed.data.fromName),
       updatedAt: new Date(),
     })
-    .where(eq(emailCampaigns.id, id));
+    .where(
+      and(
+        eq(emailCampaigns.id, id),
+        eq(emailCampaigns.workspaceId, workspace.id),
+      ),
+    );
 
   // Replace queued recipients wholesale on edit.
   await db
     .delete(emailSends)
-    .where(and(eq(emailSends.campaignId, id), eq(emailSends.status, "queued")));
+    .where(
+      and(
+        eq(emailSends.workspaceId, workspace.id),
+        eq(emailSends.campaignId, id),
+        eq(emailSends.status, "queued"),
+      ),
+    );
 
   if (targetOrgId) {
     const recipients = await db
       .select({ id: contacts.id, email: contacts.email })
       .from(contacts)
       .where(
-        and(eq(contacts.organizationId, targetOrgId), isNotNull(contacts.email)),
+        and(
+          eq(contacts.workspaceId, workspace.id),
+          eq(contacts.organizationId, targetOrgId),
+          isNotNull(contacts.email),
+        ),
       );
 
     if (recipients.length > 0) {
       await db.insert(emailSends).values(
         recipients.map((c) => ({
+          workspaceId: workspace.id,
           campaignId: id,
           contactId: c.id,
           toEmail: c.email!,
@@ -148,10 +178,25 @@ export async function updateCampaign(id: string, _: unknown, formData: FormData)
 
 export async function deleteCampaign(id: string) {
   await requireUser();
+  const workspace = await requireCurrentWorkspace();
   // email_sends.campaignId is set null on delete (not cascade), so the
   // queued recipients survive the delete — clear them explicitly.
-  await db.delete(emailSends).where(eq(emailSends.campaignId, id));
-  await db.delete(emailCampaigns).where(eq(emailCampaigns.id, id));
+  await db
+    .delete(emailSends)
+    .where(
+      and(
+        eq(emailSends.workspaceId, workspace.id),
+        eq(emailSends.campaignId, id),
+      ),
+    );
+  await db
+    .delete(emailCampaigns)
+    .where(
+      and(
+        eq(emailCampaigns.id, id),
+        eq(emailCampaigns.workspaceId, workspace.id),
+      ),
+    );
   revalidatePath("/campaigns");
   redirect("/campaigns");
 }
@@ -166,6 +211,7 @@ export async function deleteCampaign(id: string) {
  */
 export async function sendCampaignStub(id: string) {
   await requireUser();
+  const workspace = await requireCurrentWorkspace();
 
   await db
     .update(emailCampaigns)
@@ -174,7 +220,12 @@ export async function sendCampaignStub(id: string) {
       sentAt: new Date(),
       updatedAt: new Date(),
     })
-    .where(eq(emailCampaigns.id, id));
+    .where(
+      and(
+        eq(emailCampaigns.id, id),
+        eq(emailCampaigns.workspaceId, workspace.id),
+      ),
+    );
 
   await db
     .update(emailSends)
@@ -182,12 +233,23 @@ export async function sendCampaignStub(id: string) {
       status: "sent",
       sentAt: new Date(),
     })
-    .where(and(eq(emailSends.campaignId, id), eq(emailSends.status, "queued")));
+    .where(
+      and(
+        eq(emailSends.workspaceId, workspace.id),
+        eq(emailSends.campaignId, id),
+        eq(emailSends.status, "queued"),
+      ),
+    );
 
   await db
     .update(emailCampaigns)
     .set({ status: "sent", updatedAt: new Date() })
-    .where(eq(emailCampaigns.id, id));
+    .where(
+      and(
+        eq(emailCampaigns.id, id),
+        eq(emailCampaigns.workspaceId, workspace.id),
+      ),
+    );
 
   revalidatePath(`/campaigns/${id}`);
   revalidatePath("/campaigns");

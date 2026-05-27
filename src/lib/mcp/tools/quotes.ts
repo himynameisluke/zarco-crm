@@ -10,6 +10,7 @@ import {
   quoteLineItems,
   quotes,
 } from "@/lib/db/schema";
+import { getPrimaryWorkspaceIdForUser } from "@/lib/workspace/current";
 import { auditMcpWrite } from "../audit";
 import { getMcpContext, textResult } from "../context";
 
@@ -28,8 +29,11 @@ const lineItemSchema = z.object({
   unitPricePence: z.number().int().min(0).max(1_000_000_000_00),
 });
 
-async function nextQuoteNumber(): Promise<string> {
-  const [row] = await db.select({ n: sql<number>`count(*)::int` }).from(quotes);
+async function nextQuoteNumber(workspaceId: string): Promise<string> {
+  const [row] = await db
+    .select({ n: sql<number>`count(*)::int` })
+    .from(quotes)
+    .where(eq(quotes.workspaceId, workspaceId));
   const count = row?.n ?? 0;
   return `Q-${String(count + 1).padStart(4, "0")}`;
 }
@@ -69,16 +73,21 @@ export function registerQuoteTools(server: McpServer) {
     },
     async (input, { authInfo }) => {
       const { userId } = getMcpContext(authInfo);
+      const workspaceId = await getPrimaryWorkspaceIdForUser(userId);
+      if (!workspaceId) {
+        throw new Error("User has no workspace; cannot create quote");
+      }
 
       const { subtotalPence, totalPence } = computeTotals(
         input.lineItems,
         input.taxRate,
       );
-      const quoteNumber = await nextQuoteNumber();
+      const quoteNumber = await nextQuoteNumber(workspaceId);
 
       const [inserted] = await db
         .insert(quotes)
         .values({
+          workspaceId,
           quoteNumber,
           dealId: input.dealId,
           organizationId: input.organizationId,
@@ -99,6 +108,7 @@ export function registerQuoteTools(server: McpServer) {
         .insert(quoteLineItems)
         .values(
           input.lineItems.map((li, i) => ({
+            workspaceId,
             quoteId: inserted.id,
             description: li.description,
             quantity: String(li.quantity),
@@ -270,6 +280,9 @@ export function registerQuoteTools(server: McpServer) {
         await db.insert(quoteLineItems).values(
           lineItems.map((li, i) => ({
             quoteId: id,
+            // Line items inherit the parent quote's workspace (defense in
+            // depth — every workspace-scoped table carries its own FK).
+            workspaceId: existing.workspaceId,
             description: li.description,
             quantity: String(li.quantity),
             unitPricePence: li.unitPricePence,

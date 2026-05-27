@@ -1,9 +1,10 @@
-import { desc } from "drizzle-orm";
+import { desc, eq } from "drizzle-orm";
 import { SquareKanban } from "lucide-react";
 
 import { db } from "@/lib/db";
 import { contacts, organizations } from "@/lib/db/schema";
 import { requireUser } from "@/lib/auth";
+import { requireCurrentWorkspace } from "@/lib/workspace/current";
 import { Topbar } from "@/components/nav/topbar";
 import { DealForm } from "@/components/deals/deal-form";
 import { createDeal } from "../actions";
@@ -15,11 +16,13 @@ function contactName(c: { firstName: string | null; lastName: string | null; ema
 
 export default async function NewDealPage() {
   await requireUser();
+  const workspace = await requireCurrentWorkspace();
 
   const [orgOptions, contactRows] = await Promise.all([
     db
       .select({ id: organizations.id, name: organizations.name })
       .from(organizations)
+      .where(eq(organizations.workspaceId, workspace.id))
       .orderBy(desc(organizations.updatedAt))
       .limit(200),
     db
@@ -30,6 +33,7 @@ export default async function NewDealPage() {
         email: contacts.email,
       })
       .from(contacts)
+      .where(eq(contacts.workspaceId, workspace.id))
       .orderBy(desc(contacts.updatedAt))
       .limit(200),
   ]);

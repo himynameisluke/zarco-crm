@@ -2,11 +2,12 @@
 
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 
 import { db } from "@/lib/db";
 import { organizations } from "@/lib/db/schema";
 import { requireUser } from "@/lib/auth";
+import { requireCurrentWorkspace } from "@/lib/workspace/current";
 import { organizationFormSchema } from "./schema";
 
 function nullable(value: string | undefined | null) {
@@ -23,6 +24,7 @@ function nullableInt(value: FormDataEntryValue | null): number | null {
 
 export async function createOrganization(_: unknown, formData: FormData) {
   const user = await requireUser();
+  const workspace = await requireCurrentWorkspace();
 
   const employeeCountRaw = formData.get("employeeCount");
   const parsed = organizationFormSchema.safeParse({
@@ -41,6 +43,7 @@ export async function createOrganization(_: unknown, formData: FormData) {
   const [inserted] = await db
     .insert(organizations)
     .values({
+      workspaceId: workspace.id,
       name: parsed.data.name,
       domain: nullable(parsed.data.domain),
       website: nullable(parsed.data.website),
@@ -61,6 +64,7 @@ export async function updateOrganization(
   formData: FormData,
 ) {
   await requireUser();
+  const workspace = await requireCurrentWorkspace();
 
   const employeeCountRaw = formData.get("employeeCount");
   const parsed = organizationFormSchema.safeParse({
@@ -87,7 +91,12 @@ export async function updateOrganization(
       notes: nullable(parsed.data.notes),
       updatedAt: new Date(),
     })
-    .where(eq(organizations.id, id));
+    .where(
+      and(
+        eq(organizations.id, id),
+        eq(organizations.workspaceId, workspace.id),
+      ),
+    );
 
   revalidatePath("/organizations");
   revalidatePath(`/organizations/${id}`);
@@ -96,7 +105,15 @@ export async function updateOrganization(
 
 export async function deleteOrganization(id: string) {
   await requireUser();
-  await db.delete(organizations).where(eq(organizations.id, id));
+  const workspace = await requireCurrentWorkspace();
+  await db
+    .delete(organizations)
+    .where(
+      and(
+        eq(organizations.id, id),
+        eq(organizations.workspaceId, workspace.id),
+      ),
+    );
   revalidatePath("/organizations");
   redirect("/organizations");
 }

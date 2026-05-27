@@ -2,11 +2,12 @@
 
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 
 import { db } from "@/lib/db";
 import { projects } from "@/lib/db/schema";
 import { requireUser } from "@/lib/auth";
+import { requireCurrentWorkspace } from "@/lib/workspace/current";
 import { projectFormSchema } from "./schema";
 
 function nullable(value: string | undefined | null): string | null {
@@ -28,6 +29,7 @@ function parseFormData(formData: FormData) {
 
 export async function createProject(_: unknown, formData: FormData) {
   const user = await requireUser();
+  const workspace = await requireCurrentWorkspace();
   const parsed = parseFormData(formData);
   if (!parsed.success) {
     return { error: parsed.error.issues[0]?.message ?? "Invalid input" };
@@ -36,6 +38,7 @@ export async function createProject(_: unknown, formData: FormData) {
   const [inserted] = await db
     .insert(projects)
     .values({
+      workspaceId: workspace.id,
       name: parsed.data.name,
       status: parsed.data.status,
       dealId: nullable(parsed.data.dealId),
@@ -52,6 +55,7 @@ export async function createProject(_: unknown, formData: FormData) {
 
 export async function updateProject(id: string, _: unknown, formData: FormData) {
   await requireUser();
+  const workspace = await requireCurrentWorkspace();
   const parsed = parseFormData(formData);
   if (!parsed.success) {
     return { error: parsed.error.issues[0]?.message ?? "Invalid input" };
@@ -68,7 +72,9 @@ export async function updateProject(id: string, _: unknown, formData: FormData) 
       notes: nullable(parsed.data.notes),
       updatedAt: new Date(),
     })
-    .where(eq(projects.id, id));
+    .where(
+      and(eq(projects.id, id), eq(projects.workspaceId, workspace.id)),
+    );
 
   revalidatePath("/projects");
   revalidatePath(`/projects/${id}`);
@@ -77,7 +83,12 @@ export async function updateProject(id: string, _: unknown, formData: FormData) 
 
 export async function deleteProject(id: string) {
   await requireUser();
-  await db.delete(projects).where(eq(projects.id, id));
+  const workspace = await requireCurrentWorkspace();
+  await db
+    .delete(projects)
+    .where(
+      and(eq(projects.id, id), eq(projects.workspaceId, workspace.id)),
+    );
   revalidatePath("/projects");
   redirect("/projects");
 }

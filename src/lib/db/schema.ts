@@ -11,6 +11,7 @@ import {
   jsonb,
   date,
   index,
+  primaryKey,
 } from "drizzle-orm/pg-core";
 
 const authSchema = pgSchema("auth");
@@ -101,10 +102,68 @@ export const emailSendStatus = pgEnum("email_send_status", [
   "failed",
 ]);
 
+// =============================================================================
+// Workspaces
+// =============================================================================
+// Every CRM row belongs to a workspace. A user can be a member of multiple
+// workspaces (their real "Zarco" workspace + a "Demo" workspace, etc) and
+// switches between them via a cookie-stored currentWorkspaceId.
+//
+// Defense in depth:
+//   - App-layer: every query scopes by workspaceId (the helper in
+//     src/lib/workspace/current.ts resolves it).
+//   - RLS: policies require the row's workspaceId to match one the user
+//     belongs to (see supabase/policies.sql).
+
+export const workspaceType = pgEnum("workspace_type", ["real", "demo"]);
+
+export const workspaces = pgTable(
+  "workspaces",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    name: text("name").notNull(),
+    slug: text("slug").notNull().unique(),
+    type: workspaceType("type").notNull().default("real"),
+    ownerId: uuid("owner_id").references(() => authUsers.id, {
+      onDelete: "set null",
+    }),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+);
+
+export const workspaceMembers = pgTable(
+  "workspace_members",
+  {
+    workspaceId: uuid("workspace_id")
+      .notNull()
+      .references(() => workspaces.id, { onDelete: "cascade" }),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => authUsers.id, { onDelete: "cascade" }),
+    // 'owner' for now; expand to admin/member/viewer when team support lands.
+    role: text("role").notNull().default("owner"),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.workspaceId, t.userId] }),
+    index("workspace_members_user_idx").on(t.userId),
+  ],
+);
+
 export const organizations = pgTable(
   "organizations",
   {
     id: uuid("id").primaryKey().defaultRandom(),
+    workspaceId: uuid("workspace_id")
+      .notNull()
+      .references(() => workspaces.id, { onDelete: "restrict" }),
     name: text("name").notNull(),
     domain: text("domain"),
     website: text("website"),
@@ -115,13 +174,19 @@ export const organizations = pgTable(
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
-  (t) => [index("organizations_domain_idx").on(t.domain)],
+  (t) => [
+    index("organizations_workspace_idx").on(t.workspaceId),
+    index("organizations_domain_idx").on(t.domain),
+  ],
 );
 
 export const contacts = pgTable(
   "contacts",
   {
     id: uuid("id").primaryKey().defaultRandom(),
+    workspaceId: uuid("workspace_id")
+      .notNull()
+      .references(() => workspaces.id, { onDelete: "restrict" }),
     firstName: text("first_name"),
     lastName: text("last_name"),
     email: text("email"),
@@ -137,6 +202,7 @@ export const contacts = pgTable(
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [
+    index("contacts_workspace_idx").on(t.workspaceId),
     index("contacts_email_idx").on(t.email),
     index("contacts_org_idx").on(t.organizationId),
   ],
@@ -146,6 +212,9 @@ export const deals = pgTable(
   "deals",
   {
     id: uuid("id").primaryKey().defaultRandom(),
+    workspaceId: uuid("workspace_id")
+      .notNull()
+      .references(() => workspaces.id, { onDelete: "restrict" }),
     name: text("name").notNull(),
     type: dealType("type").notNull().default("sale"),
     stage: dealStage("stage").notNull().default("lead"),
@@ -163,6 +232,7 @@ export const deals = pgTable(
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [
+    index("deals_workspace_idx").on(t.workspaceId),
     index("deals_org_idx").on(t.organizationId),
     index("deals_stage_idx").on(t.stage),
     index("deals_owner_idx").on(t.ownerId),
@@ -173,6 +243,9 @@ export const projects = pgTable(
   "projects",
   {
     id: uuid("id").primaryKey().defaultRandom(),
+    workspaceId: uuid("workspace_id")
+      .notNull()
+      .references(() => workspaces.id, { onDelete: "restrict" }),
     name: text("name").notNull(),
     dealId: uuid("deal_id").references(() => deals.id, { onDelete: "set null" }),
     status: projectStatus("status").notNull().default("not_started"),
@@ -183,13 +256,19 @@ export const projects = pgTable(
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
-  (t) => [index("projects_deal_idx").on(t.dealId)],
+  (t) => [
+    index("projects_workspace_idx").on(t.workspaceId),
+    index("projects_deal_idx").on(t.dealId),
+  ],
 );
 
 export const activities = pgTable(
   "activities",
   {
     id: uuid("id").primaryKey().defaultRandom(),
+    workspaceId: uuid("workspace_id")
+      .notNull()
+      .references(() => workspaces.id, { onDelete: "restrict" }),
     type: activityType("type").notNull(),
     source: activitySource("source").notNull().default("manual"),
     subjectType: subjectType("subject_type").notNull(),
@@ -202,6 +281,7 @@ export const activities = pgTable(
     createdBy: uuid("created_by").references(() => authUsers.id, { onDelete: "set null" }),
   },
   (t) => [
+    index("activities_workspace_idx").on(t.workspaceId),
     index("activities_subject_idx").on(t.subjectType, t.subjectId),
     index("activities_occurred_idx").on(t.occurredAt),
   ],
@@ -211,6 +291,9 @@ export const tasks = pgTable(
   "tasks",
   {
     id: uuid("id").primaryKey().defaultRandom(),
+    workspaceId: uuid("workspace_id")
+      .notNull()
+      .references(() => workspaces.id, { onDelete: "restrict" }),
     title: text("title").notNull(),
     description: text("description"),
     status: taskStatus("status").notNull().default("todo"),
@@ -224,6 +307,7 @@ export const tasks = pgTable(
     completedAt: timestamp("completed_at", { withTimezone: true }),
   },
   (t) => [
+    index("tasks_workspace_idx").on(t.workspaceId),
     index("tasks_subject_idx").on(t.subjectType, t.subjectId),
     index("tasks_assignee_idx").on(t.assignedTo),
     index("tasks_status_idx").on(t.status),
@@ -234,6 +318,9 @@ export const quotes = pgTable(
   "quotes",
   {
     id: uuid("id").primaryKey().defaultRandom(),
+    workspaceId: uuid("workspace_id")
+      .notNull()
+      .references(() => workspaces.id, { onDelete: "restrict" }),
     quoteNumber: text("quote_number").notNull().unique(),
     // Quotes MUST be tied to both a deal and an organization. This stops
     // floating quotes that can't be reconciled back to the pipeline. We use
@@ -262,6 +349,7 @@ export const quotes = pgTable(
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [
+    index("quotes_workspace_idx").on(t.workspaceId),
     index("quotes_deal_idx").on(t.dealId),
     index("quotes_org_idx").on(t.organizationId),
     index("quotes_status_idx").on(t.status),
@@ -272,6 +360,9 @@ export const quoteLineItems = pgTable(
   "quote_line_items",
   {
     id: uuid("id").primaryKey().defaultRandom(),
+    workspaceId: uuid("workspace_id")
+      .notNull()
+      .references(() => workspaces.id, { onDelete: "restrict" }),
     quoteId: uuid("quote_id").notNull().references(() => quotes.id, { onDelete: "cascade" }),
     description: text("description").notNull(),
     quantity: numeric("quantity", { precision: 12, scale: 2 }).notNull().default("1"),
@@ -279,23 +370,33 @@ export const quoteLineItems = pgTable(
     totalPence: bigint("total_pence", { mode: "number" }).notNull(),
     sortOrder: integer("sort_order").notNull().default(0),
   },
-  (t) => [index("quote_line_items_quote_idx").on(t.quoteId)],
+  (t) => [
+    index("quote_line_items_workspace_idx").on(t.workspaceId),
+    index("quote_line_items_quote_idx").on(t.quoteId),
+  ],
 );
 
-export const emailCampaigns = pgTable("email_campaigns", {
-  id: uuid("id").primaryKey().defaultRandom(),
-  name: text("name").notNull(),
-  subject: text("subject").notNull(),
-  bodyHtml: text("body_html").notNull(),
-  status: campaignStatus("status").notNull().default("draft"),
-  fromEmail: text("from_email").notNull(),
-  fromName: text("from_name"),
-  scheduledAt: timestamp("scheduled_at", { withTimezone: true }),
-  sentAt: timestamp("sent_at", { withTimezone: true }),
-  createdBy: uuid("created_by").references(() => authUsers.id, { onDelete: "set null" }),
-  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
-  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
-});
+export const emailCampaigns = pgTable(
+  "email_campaigns",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    workspaceId: uuid("workspace_id")
+      .notNull()
+      .references(() => workspaces.id, { onDelete: "restrict" }),
+    name: text("name").notNull(),
+    subject: text("subject").notNull(),
+    bodyHtml: text("body_html").notNull(),
+    status: campaignStatus("status").notNull().default("draft"),
+    fromEmail: text("from_email").notNull(),
+    fromName: text("from_name"),
+    scheduledAt: timestamp("scheduled_at", { withTimezone: true }),
+    sentAt: timestamp("sent_at", { withTimezone: true }),
+    createdBy: uuid("created_by").references(() => authUsers.id, { onDelete: "set null" }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index("email_campaigns_workspace_idx").on(t.workspaceId)],
+);
 
 // =============================================================================
 // Inbox — pre-activity items needing triage
@@ -331,6 +432,9 @@ export const inboxItems = pgTable(
   "inbox_items",
   {
     id: uuid("id").primaryKey().defaultRandom(),
+    workspaceId: uuid("workspace_id")
+      .notNull()
+      .references(() => workspaces.id, { onDelete: "restrict" }),
     type: inboxItemType("type").notNull(),
     source: inboxItemSource("source").notNull(),
     title: text("title").notNull(),
@@ -344,6 +448,7 @@ export const inboxItems = pgTable(
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [
+    index("inbox_items_workspace_idx").on(t.workspaceId),
     index("inbox_items_status_idx").on(t.status),
     index("inbox_items_received_idx").on(t.receivedAt),
   ],
@@ -419,6 +524,9 @@ export const emailSends = pgTable(
   "email_sends",
   {
     id: uuid("id").primaryKey().defaultRandom(),
+    workspaceId: uuid("workspace_id")
+      .notNull()
+      .references(() => workspaces.id, { onDelete: "restrict" }),
     campaignId: uuid("campaign_id").references(() => emailCampaigns.id, {
       onDelete: "set null",
     }),
@@ -437,6 +545,7 @@ export const emailSends = pgTable(
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [
+    index("email_sends_workspace_idx").on(t.workspaceId),
     index("email_sends_campaign_idx").on(t.campaignId),
     index("email_sends_contact_idx").on(t.contactId),
     index("email_sends_status_idx").on(t.status),

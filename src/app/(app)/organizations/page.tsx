@@ -16,6 +16,7 @@ import {
 import { db } from "@/lib/db";
 import { activities, contacts, deals, organizations } from "@/lib/db/schema";
 import { requireUser } from "@/lib/auth";
+import { requireCurrentWorkspace } from "@/lib/workspace/current";
 import { Topbar } from "@/components/nav/topbar";
 import { EmptyState } from "@/components/empty-state";
 import { colorFromString } from "@/lib/colors";
@@ -23,6 +24,7 @@ import { formatMoney, formatRelative } from "@/lib/format";
 
 export default async function OrganizationsPage() {
   await requireUser();
+  const workspace = await requireCurrentWorkspace();
 
   const rows = await db
     .select({
@@ -44,6 +46,7 @@ export default async function OrganizationsPage() {
       activities,
       sql`${activities.subjectType} = 'organization' AND ${activities.subjectId} = ${organizations.id}`,
     )
+    .where(eq(organizations.workspaceId, workspace.id))
     .groupBy(organizations.id)
     .orderBy(desc(organizations.updatedAt))
     .limit(200);

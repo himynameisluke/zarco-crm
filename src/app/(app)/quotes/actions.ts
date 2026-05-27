@@ -2,12 +2,13 @@
 
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
-import { eq, sql } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 import { z } from "zod";
 
 import { db } from "@/lib/db";
 import { quoteLineItems, quotes } from "@/lib/db/schema";
 import { requireUser } from "@/lib/auth";
+import { requireCurrentWorkspace } from "@/lib/workspace/current";
 import { lineItemSchema, quoteFormSchema } from "./schema";
 
 function nullable(value: string | undefined | null): string | null {
@@ -20,8 +21,11 @@ function poundsToPence(n: number): number {
   return Math.round(n * 100);
 }
 
-async function nextQuoteNumber(): Promise<string> {
-  const [row] = await db.select({ n: sql<number>`count(*)::int` }).from(quotes);
+async function nextQuoteNumber(workspaceId: string): Promise<string> {
+  const [row] = await db
+    .select({ n: sql<number>`count(*)::int` })
+    .from(quotes)
+    .where(eq(quotes.workspaceId, workspaceId));
   const count = row?.n ?? 0;
   return `Q-${String(count + 1).padStart(4, "0")}`;
 }
@@ -61,6 +65,7 @@ function parseFormData(formData: FormData) {
 
 export async function createQuote(_: unknown, formData: FormData) {
   const user = await requireUser();
+  const workspace = await requireCurrentWorkspace();
   const parsed = parseFormData(formData);
   if (!parsed.success) {
     return { error: parsed.error.issues[0]?.message ?? "Invalid input" };
@@ -71,11 +76,12 @@ export async function createQuote(_: unknown, formData: FormData) {
     parsed.data.taxRate,
   );
 
-  const quoteNumber = await nextQuoteNumber();
+  const quoteNumber = await nextQuoteNumber(workspace.id);
 
   const [inserted] = await db
     .insert(quotes)
     .values({
+      workspaceId: workspace.id,
       quoteNumber,
       // dealId + organizationId are required (DB NOT NULL + zod uuid).
       // contactId stays optional.
@@ -93,16 +99,19 @@ export async function createQuote(_: unknown, formData: FormData) {
     })
     .returning({ id: quotes.id });
 
-  await db.insert(quoteLineItems).values(
-    parsed.data.lineItems.map((li, i) => ({
-      quoteId: inserted.id,
-      description: li.description,
-      quantity: li.quantity.toString(),
-      unitPricePence: poundsToPence(li.unitPricePounds),
-      totalPence: Math.round(li.quantity * li.unitPricePounds * 100),
-      sortOrder: i,
-    })),
-  );
+  if (parsed.data.lineItems.length > 0) {
+    await db.insert(quoteLineItems).values(
+      parsed.data.lineItems.map((li, i) => ({
+        workspaceId: workspace.id,
+        quoteId: inserted.id,
+        description: li.description,
+        quantity: li.quantity.toString(),
+        unitPricePence: poundsToPence(li.unitPricePounds),
+        totalPence: Math.round(li.quantity * li.unitPricePounds * 100),
+        sortOrder: i,
+      })),
+    );
+  }
 
   revalidatePath("/quotes");
   redirect(`/quotes/${inserted.id}`);
@@ -110,6 +119,7 @@ export async function createQuote(_: unknown, formData: FormData) {
 
 export async function updateQuote(id: string, _: unknown, formData: FormData) {
   await requireUser();
+  const workspace = await requireCurrentWorkspace();
   const parsed = parseFormData(formData);
   if (!parsed.success) {
     return { error: parsed.error.issues[0]?.message ?? "Invalid input" };
@@ -134,20 +144,32 @@ export async function updateQuote(id: string, _: unknown, formData: FormData) {
       notes: nullable(parsed.data.notes),
       updatedAt: new Date(),
     })
-    .where(eq(quotes.id, id));
+    .where(
+      and(eq(quotes.id, id), eq(quotes.workspaceId, workspace.id)),
+    );
 
   // Replace line items wholesale.
-  await db.delete(quoteLineItems).where(eq(quoteLineItems.quoteId, id));
-  await db.insert(quoteLineItems).values(
-    parsed.data.lineItems.map((li, i) => ({
-      quoteId: id,
-      description: li.description,
-      quantity: li.quantity.toString(),
-      unitPricePence: poundsToPence(li.unitPricePounds),
-      totalPence: Math.round(li.quantity * li.unitPricePounds * 100),
-      sortOrder: i,
-    })),
-  );
+  await db
+    .delete(quoteLineItems)
+    .where(
+      and(
+        eq(quoteLineItems.quoteId, id),
+        eq(quoteLineItems.workspaceId, workspace.id),
+      ),
+    );
+  if (parsed.data.lineItems.length > 0) {
+    await db.insert(quoteLineItems).values(
+      parsed.data.lineItems.map((li, i) => ({
+        workspaceId: workspace.id,
+        quoteId: id,
+        description: li.description,
+        quantity: li.quantity.toString(),
+        unitPricePence: poundsToPence(li.unitPricePounds),
+        totalPence: Math.round(li.quantity * li.unitPricePounds * 100),
+        sortOrder: i,
+      })),
+    );
+  }
 
   revalidatePath("/quotes");
   revalidatePath(`/quotes/${id}`);
@@ -156,8 +178,11 @@ export async function updateQuote(id: string, _: unknown, formData: FormData) {
 
 export async function deleteQuote(id: string) {
   await requireUser();
+  const workspace = await requireCurrentWorkspace();
   // quote_line_items cascade on quote delete via the FK.
-  await db.delete(quotes).where(eq(quotes.id, id));
+  await db
+    .delete(quotes)
+    .where(and(eq(quotes.id, id), eq(quotes.workspaceId, workspace.id)));
   revalidatePath("/quotes");
   redirect("/quotes");
 }
@@ -169,9 +194,10 @@ export async function deleteQuote(id: string) {
  */
 export async function markQuoteSent(id: string) {
   await requireUser();
+  const workspace = await requireCurrentWorkspace();
   await db
     .update(quotes)
     .set({ status: "sent", sentAt: new Date(), updatedAt: new Date() })
-    .where(eq(quotes.id, id));
+    .where(and(eq(quotes.id, id), eq(quotes.workspaceId, workspace.id)));
   revalidatePath(`/quotes/${id}`);
 }

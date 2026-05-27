@@ -1,10 +1,11 @@
 import { notFound } from "next/navigation";
-import { desc, eq, sql } from "drizzle-orm";
+import { and, desc, eq, sql } from "drizzle-orm";
 import { Megaphone } from "lucide-react";
 
 import { db } from "@/lib/db";
 import { contacts, emailCampaigns, emailSends, organizations } from "@/lib/db/schema";
 import { requireUser } from "@/lib/auth";
+import { requireCurrentWorkspace } from "@/lib/workspace/current";
 import { Topbar } from "@/components/nav/topbar";
 import { CampaignForm } from "@/components/campaigns/campaign-form";
 import { updateCampaign } from "../../actions";
@@ -17,13 +18,19 @@ export default async function EditCampaignPage({
   params: Promise<{ id: string }>;
 }) {
   await requireUser();
+  const workspace = await requireCurrentWorkspace();
   const { id } = await params;
 
   const [campaign, orgRows, currentSendOrg] = await Promise.all([
     db
       .select()
       .from(emailCampaigns)
-      .where(eq(emailCampaigns.id, id))
+      .where(
+        and(
+          eq(emailCampaigns.id, id),
+          eq(emailCampaigns.workspaceId, workspace.id),
+        ),
+      )
       .limit(1)
       .then((r) => r[0]),
     db
@@ -37,6 +44,7 @@ export default async function EditCampaignPage({
         contacts,
         sql`${contacts.organizationId} = ${organizations.id} AND ${contacts.email} IS NOT NULL`,
       )
+      .where(eq(organizations.workspaceId, workspace.id))
       .groupBy(organizations.id)
       .having(sql`count(${contacts.id}) > 0`)
       .orderBy(desc(organizations.updatedAt))
@@ -49,7 +57,12 @@ export default async function EditCampaignPage({
       .select({ organizationId: contacts.organizationId })
       .from(emailSends)
       .innerJoin(contacts, eq(emailSends.contactId, contacts.id))
-      .where(eq(emailSends.campaignId, id))
+      .where(
+        and(
+          eq(emailSends.workspaceId, workspace.id),
+          eq(emailSends.campaignId, id),
+        ),
+      )
       .limit(1)
       .then((r) => r[0]?.organizationId ?? null),
   ]);

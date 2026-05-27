@@ -4,6 +4,7 @@ import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 
 import { db } from "@/lib/db";
 import { contacts, deals, organizations } from "@/lib/db/schema";
+import { getPrimaryWorkspaceIdForUser } from "@/lib/workspace/current";
 import { auditMcpWrite } from "../audit";
 import { getMcpContext, textResult } from "../context";
 
@@ -127,9 +128,14 @@ export function registerOrganizationTools(server: McpServer) {
     },
     async (input, { authInfo }) => {
       const { userId } = getMcpContext(authInfo);
+      const workspaceId = await getPrimaryWorkspaceIdForUser(userId);
+      if (!workspaceId) {
+        throw new Error("User has no workspace; cannot create organization");
+      }
       const [inserted] = await db
         .insert(organizations)
         .values({
+          workspaceId,
           name: input.name,
           domain: nullable(input.domain),
           website: nullable(input.website),
