@@ -235,10 +235,16 @@ export const quotes = pgTable(
   {
     id: uuid("id").primaryKey().defaultRandom(),
     quoteNumber: text("quote_number").notNull().unique(),
-    dealId: uuid("deal_id").references(() => deals.id, { onDelete: "set null" }),
-    organizationId: uuid("organization_id").references(() => organizations.id, {
-      onDelete: "set null",
-    }),
+    // Quotes MUST be tied to both a deal and an organization. This stops
+    // floating quotes that can't be reconciled back to the pipeline. We use
+    // onDelete: restrict — if a deal/org has quotes, you have to deal with
+    // them explicitly rather than silently nulling references or cascading.
+    dealId: uuid("deal_id")
+      .notNull()
+      .references(() => deals.id, { onDelete: "restrict" }),
+    organizationId: uuid("organization_id")
+      .notNull()
+      .references(() => organizations.id, { onDelete: "restrict" }),
     contactId: uuid("contact_id").references(() => contacts.id, { onDelete: "set null" }),
     status: quoteStatus("status").notNull().default("draft"),
     subtotalPence: bigint("subtotal_pence", { mode: "number" }).notNull().default(0),

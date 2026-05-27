@@ -141,15 +141,42 @@ export function QuoteForm({
         </CardHeader>
         <CardContent className="grid gap-4 sm:grid-cols-3">
           <div className="grid gap-2">
-            <Label htmlFor="organizationId">Organization</Label>
-            <Select name="organizationId" defaultValue={defaultValues?.organizationId ?? ""}>
+            <Label htmlFor="organizationId">
+              Organization <span className="text-destructive">*</span>
+            </Label>
+            <Select
+              name="organizationId"
+              defaultValue={defaultValues?.organizationId ?? ""}
+              required
+            >
               <SelectTrigger id="organizationId" disabled={pending}>
-                <SelectValue placeholder="None" />
+                <SelectValue placeholder="Select an organization" />
               </SelectTrigger>
               <SelectContent>
                 {organizationOptions.map((o) => (
                   <SelectItem key={o.id} value={o.id}>
                     {o.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="grid gap-2">
+            <Label htmlFor="dealId">
+              Linked deal <span className="text-destructive">*</span>
+            </Label>
+            <Select
+              name="dealId"
+              defaultValue={defaultValues?.dealId ?? ""}
+              required
+            >
+              <SelectTrigger id="dealId" disabled={pending}>
+                <SelectValue placeholder="Select a deal" />
+              </SelectTrigger>
+              <SelectContent>
+                {dealOptions.map((d) => (
+                  <SelectItem key={d.id} value={d.id}>
+                    {d.name}
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -165,21 +192,6 @@ export function QuoteForm({
                 {contactOptions.map((c) => (
                   <SelectItem key={c.id} value={c.id}>
                     {c.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-          <div className="grid gap-2">
-            <Label htmlFor="dealId">Linked deal</Label>
-            <Select name="dealId" defaultValue={defaultValues?.dealId ?? ""}>
-              <SelectTrigger id="dealId" disabled={pending}>
-                <SelectValue placeholder="None" />
-              </SelectTrigger>
-              <SelectContent>
-                {dealOptions.map((d) => (
-                  <SelectItem key={d.id} value={d.id}>
-                    {d.name}
                   </SelectItem>
                 ))}
               </SelectContent>
