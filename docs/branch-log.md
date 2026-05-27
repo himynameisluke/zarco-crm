@@ -27,6 +27,7 @@ one, not main).
 | 2026-05-27 | `feat/password-auth` | 4 | +126 | -27 | 1 | Switch sign-in from magic-link OTP to email + password (signInWithPassword + signUp). Magic-link redirect URL was a mess across local/Vercel/custom-domain environments; password auth keeps everything in-app. |
 | 2026-05-27 | `feat/settings-pages` | 6 | +792 | -11 | 1 | Populate /settings: landing page with section cards + Profile (with re-auth-gated change-password form) + Workspace stub + Team stub. Profile + password change is the priority — solves the "temp password in chat history" problem. |
 | 2026-05-27 | `fix/sidebar-presence` | 3 | +9 | -6 | 1 | Lower desktop sidebar breakpoint from lg (1024px) to sm (640px) so it stays visible at typical split-screen widths instead of collapsing to hamburger. Match hamburger trigger + drawer at the same breakpoint. Bump nav-item height 28 → 32px so the sidebar fills more vertically (matches the Vercel reference). |
+| 2026-05-27 | `feat/bigger-logo` | 1 | +3 | -3 | 1 | Bump Zarco mark + wordmark in sidebar top-left (20→28px ring, 14.5→18px wordmark) per user feedback. |
 
 ## Running totals (cumulative, since `main`)
 
@@ -47,7 +48,8 @@ one, not main).
 | `fix/bug-bash` | +72 | Merged to main in PR #4 — bug fix only, no app feature change |
 | `feat/password-auth` | +99 | Merged to main in PR #5 — replaces magic-link sign-in with email + password |
 | `feat/settings-pages` | +781 | Merged to main in PR #6 — populates the settings area (profile + change password, workspace stub, team stub, landing) |
-| `fix/sidebar-presence` | +3 | Off main, current branch — sidebar visible at sm+ instead of lg+ and slightly taller nav items |
+| `fix/sidebar-presence` | +3 | Merged to main in PR #7 — sidebar visible at sm+ instead of lg+ and slightly taller nav items |
+| `feat/bigger-logo` | +0 | Off main, current branch — visual tweak only, larger Zarco mark + wordmark |
 
 Numbers are inflated by the design bundle archived in `docs/design/` (HTML +
 JSX prototypes for reference) — production code is roughly half that.

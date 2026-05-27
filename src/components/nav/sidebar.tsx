@@ -133,13 +133,13 @@ export function Sidebar({ userEmail = "guest@zarco.uk", counts = {} }: SidebarPr
       {/* Brand + workspace switcher */}
       <div
         style={{
-          padding: "14px 14px 12px",
+          padding: "16px 14px 14px",
           display: "flex",
           alignItems: "center",
-          gap: 10,
+          gap: 11,
         }}
       >
-        <ZarcoMark size={20} />
+        <ZarcoMark size={28} />
         <div
           style={{
             display: "flex",
@@ -150,7 +150,7 @@ export function Sidebar({ userEmail = "guest@zarco.uk", counts = {} }: SidebarPr
           <span
             style={{
               fontFamily: "var(--display)",
-              fontSize: 14.5,
+              fontSize: 18,
               fontWeight: 500,
               letterSpacing: "-0.02em",
             }}
