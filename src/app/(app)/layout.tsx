@@ -44,12 +44,12 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       style={{ background: "var(--bg)", color: "var(--ink)" }}
     >
       {/* Desktop sidebar: explicit width + flex-shrink so it can't collapse
-          when the flex container is at viewport width. `block` alone made the
-          wrapper a shrinkable flex item that compressed to ~0 in some
-          viewports (only the absolutely-positioned bits of the Sidebar were
-          visible). */}
+          when the flex container is at viewport width.
+          Visible at sm (>=640px), not lg (>=1024px). Most laptop / split-
+          screen / tablet widths keep the sidebar permanently visible like
+          Vercel + Linear. Hamburger drawer is a true-phone fallback only. */}
       <div
-        className="hidden lg:block h-full"
+        className="hidden sm:block h-full"
         style={{ width: 232, flexShrink: 0 }}
       >
         <Sidebar userEmail={userEmail} counts={counts} />
