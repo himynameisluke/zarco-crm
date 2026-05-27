@@ -1,5 +1,17 @@
 import Link from "next/link";
-import { and, desc, eq, gte, isNotNull, lt, ne, or, sql } from "drizzle-orm";
+import {
+  and,
+  desc,
+  eq,
+  gt,
+  gte,
+  isNotNull,
+  isNull,
+  lt,
+  ne,
+  or,
+  sql,
+} from "drizzle-orm";
 import {
   ArrowUpLeft,
   ArrowDownRight,
@@ -17,7 +29,12 @@ import {
 } from "lucide-react";
 
 import { db } from "@/lib/db";
-import { activities, deals, tasks } from "@/lib/db/schema";
+import {
+  activities,
+  deals,
+  oauthAccessTokens,
+  tasks,
+} from "@/lib/db/schema";
 import { Topbar } from "@/components/nav/topbar";
 import { formatMoney, formatRelative } from "@/lib/format";
 import {
@@ -517,6 +534,34 @@ export async function Dashboard({ userEmail }: { userEmail: string }) {
     .orderBy(desc(tasks.dueAt))
     .limit(5);
 
+  // MCP connection status — live (not expired, not revoked) bearer tokens.
+  // Each connected Claude client = one row here.
+  const [mcpClientCountRow] = await db
+    .select({ n: sql<number>`count(*)::int` })
+    .from(oauthAccessTokens)
+    .where(
+      and(
+        isNull(oauthAccessTokens.revokedAt),
+        gt(oauthAccessTokens.expiresAt, now),
+      ),
+    );
+  const mcpClientCount = mcpClientCountRow?.n ?? 0;
+
+  // MCP-attributed writes in the last 7 days (audit-trail activities).
+  const [mcpActivityCountRow] = await db
+    .select({ n: sql<number>`count(*)::int` })
+    .from(activities)
+    .where(
+      and(
+        eq(activities.source, "mcp"),
+        gte(
+          activities.occurredAt,
+          new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000),
+        ),
+      ),
+    );
+  const mcpRecentActivityCount = mcpActivityCountRow?.n ?? 0;
+
   const user = firstName(userEmail);
   const todayLabel = now.toLocaleDateString("en-GB", {
     weekday: "short",
@@ -912,56 +957,138 @@ export async function Dashboard({ userEmail }: { userEmail: string }) {
                   gap: 12,
                 }}
               >
-                <p
-                  style={{
-                    fontSize: 12.5,
-                    color: "var(--ink-2)",
-                    lineHeight: 1.5,
-                    margin: 0,
-                  }}
-                >
-                  <span style={{ color: "var(--ink)" }}>
-                    Connect a Claude client to your MCP endpoint
-                  </span>{" "}
-                  to start asking it questions about your CRM. Tools available:
-                  find/get/search across contacts, organizations, deals, and
-                  activities.
-                </p>
-                <div style={{ display: "flex", gap: 8 }}>
-                  <Link href="/settings/mcp" className="btn btn-primary btn-sm">
-                    Set up MCP
-                  </Link>
-                  <Link href="/activity" className="btn btn-sm">
-                    Show activity
-                  </Link>
-                </div>
-                <hr
-                  style={{
-                    margin: "4px 0",
-                    border: 0,
-                    borderTop: "1px solid var(--hairline)",
-                  }}
-                />
-                <p
-                  style={{
-                    fontSize: 12,
-                    color: "var(--ink-3)",
-                    lineHeight: 1.5,
-                    margin: 0,
-                    display: "flex",
-                    alignItems: "flex-start",
-                    gap: 6,
-                  }}
-                >
-                  <Sparkles
-                    size={11}
-                    color="var(--amber)"
-                    style={{ marginTop: 3, flexShrink: 0 }}
-                  />
-                  Phase B (write tools) ships next — then Claude can log
-                  activities, create tasks, and update deal stages on your
-                  behalf.
-                </p>
+                {mcpClientCount > 0 ? (
+                  <>
+                    <p
+                      style={{
+                        fontSize: 12.5,
+                        color: "var(--ink-2)",
+                        lineHeight: 1.5,
+                        margin: 0,
+                      }}
+                    >
+                      <span style={{ color: "var(--ink)" }}>
+                        {mcpClientCount} Claude client
+                        {mcpClientCount === 1 ? "" : "s"} connected
+                      </span>{" "}
+                      with read + write access. Anything Claude does is
+                      attributed in the activity feed.
+                    </p>
+                    <div
+                      style={{
+                        display: "flex",
+                        gap: 14,
+                        padding: "10px 12px",
+                        borderRadius: 6,
+                        background: "var(--surface-2)",
+                        border: "1px solid var(--hairline)",
+                      }}
+                    >
+                      <div style={{ flex: 1 }}>
+                        <div
+                          className="t-num"
+                          style={{ fontSize: 18, color: "var(--ink)" }}
+                        >
+                          {mcpRecentActivityCount}
+                        </div>
+                        <span
+                          className="t-mono"
+                          style={{ fontSize: 10, color: "var(--ink-4)" }}
+                        >
+                          MCP WRITES · 7d
+                        </span>
+                      </div>
+                      <div
+                        style={{
+                          width: 1,
+                          background: "var(--hairline)",
+                        }}
+                      />
+                      <div style={{ flex: 1 }}>
+                        <div
+                          className="t-num"
+                          style={{ fontSize: 18, color: "var(--ink)" }}
+                        >
+                          {mcpClientCount}
+                        </div>
+                        <span
+                          className="t-mono"
+                          style={{ fontSize: 10, color: "var(--ink-4)" }}
+                        >
+                          ACTIVE TOKENS
+                        </span>
+                      </div>
+                    </div>
+                    <div style={{ display: "flex", gap: 8 }}>
+                      <Link
+                        href="/activity?source=mcp"
+                        className="btn btn-primary btn-sm"
+                      >
+                        View MCP activity
+                      </Link>
+                      <Link href="/settings/mcp" className="btn btn-sm">
+                        Manage tokens
+                      </Link>
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <p
+                      style={{
+                        fontSize: 12.5,
+                        color: "var(--ink-2)",
+                        lineHeight: 1.5,
+                        margin: 0,
+                      }}
+                    >
+                      <span style={{ color: "var(--ink)" }}>
+                        No Claude clients connected yet.
+                      </span>{" "}
+                      Hook up Claude.ai web, Claude Desktop, or Claude Code via
+                      the MCP endpoint to drive the whole CRM from a
+                      conversation — read contacts, create deals, log
+                      activities, send quotes (with confirm).
+                    </p>
+                    <div style={{ display: "flex", gap: 8 }}>
+                      <Link
+                        href="/settings/mcp"
+                        className="btn btn-primary btn-sm"
+                      >
+                        Set up MCP
+                      </Link>
+                      <Link href="/activity" className="btn btn-sm">
+                        Show activity
+                      </Link>
+                    </div>
+                    <hr
+                      style={{
+                        margin: "4px 0",
+                        border: 0,
+                        borderTop: "1px solid var(--hairline)",
+                      }}
+                    />
+                    <p
+                      style={{
+                        fontSize: 12,
+                        color: "var(--ink-3)",
+                        lineHeight: 1.5,
+                        margin: 0,
+                        display: "flex",
+                        alignItems: "flex-start",
+                        gap: 6,
+                      }}
+                    >
+                      <Sparkles
+                        size={11}
+                        color="var(--amber)"
+                        style={{ marginTop: 3, flexShrink: 0 }}
+                      />
+                      Tools available: find/get/search across the CRM, create +
+                      update entities, send emails + quotes (gated by explicit
+                      confirm).
+                    </p>
+                  </>
+                )}
               </div>
             </div>
           </div>
