@@ -24,6 +24,7 @@ one, not main).
 | 2026-05-26 | `feat/campaigns-and-high-stakes` | 13 | +1,593 | -9 | 1 | Campaigns module (draft mode, no Resend); MCP delete_* + send_* (stubbed) with confirm-required gating; Outlook/Resend/Granola placeholder cards on /settings/mcp |
 | 2026-05-26 | `feat/vercel-deploy` | 4 | +198 | 0 | 1 | Deploy hand-off: vercel.json (60s maxDuration on /mcp), expanded .env.example (REDIS_URL + future-integration vars), docs/DEPLOY.md with step-by-step, fix .gitignore to track .env.example |
 | 2026-05-27 | `fix/bug-bash` | 2 | +88 | -16 | 1 | Fix mobile sidebar drawer rendering only top 47px — Topbar's `backdrop-filter` was creating a containing block for fixed-positioned descendants, so the drawer sized to topbar (920×47) instead of viewport. Portaled the drawer to `document.body` to escape. Also tightened desktop sidebar wrapper with explicit width + flex-shrink:0. |
+| 2026-05-27 | `feat/password-auth` | 4 | +126 | -27 | 1 | Switch sign-in from magic-link OTP to email + password (signInWithPassword + signUp). Magic-link redirect URL was a mess across local/Vercel/custom-domain environments; password auth keeps everything in-app. |
 
 ## Running totals (cumulative, since `main`)
 
@@ -41,7 +42,8 @@ one, not main).
 | `feat/quotes-builder` | +22,110 | Merged to main in PR #1 |
 | `feat/campaigns-and-high-stakes` | +1,584 | Merged to main in PR #2 |
 | `feat/vercel-deploy` | +198 | Merged to main in PR #3 — docs + config only, no app code change |
-| `fix/bug-bash` | +72 | Off main, current branch — bug fix only, no app feature change |
+| `fix/bug-bash` | +72 | Merged to main in PR #4 — bug fix only, no app feature change |
+| `feat/password-auth` | +99 | Off main, current branch — replaces magic-link sign-in with email + password |
 
 Numbers are inflated by the design bundle archived in `docs/design/` (HTML +
 JSX prototypes for reference) — production code is roughly half that.

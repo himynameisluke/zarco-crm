@@ -26,7 +26,7 @@ export default async function LoginPage({
       <CardHeader>
         <CardTitle>Sign in to Zarco CRM</CardTitle>
         <CardDescription>
-          Enter your email and we&apos;ll send you a magic link.
+          Sign in with your email and password.
         </CardDescription>
       </CardHeader>
       <CardContent>
