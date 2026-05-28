@@ -94,7 +94,7 @@ export default async function DealsPage() {
               gap: 5,
             }}
           >
-            <Sparkles size={11} color="var(--amber)" />
+            <Sparkles size={11} color="var(--magenta)" />
             Claude is watching this board
           </span>
         </div>
@@ -140,9 +140,9 @@ export default async function DealsPage() {
                 fontSize: 9.5,
                 padding: "1px 5px",
                 borderRadius: 3,
-                background: "rgba(255,255,255,0.04)",
-                color: "var(--ink-3)",
-                border: "1px solid var(--hairline)",
+                background: "var(--ink-04)",
+                color: "var(--ink-60)",
+                border: "1px solid var(--ink-20)",
               }}
             >
               0–6d
@@ -153,9 +153,9 @@ export default async function DealsPage() {
                 fontSize: 9.5,
                 padding: "1px 5px",
                 borderRadius: 3,
-                background: "oklch(0.82 0.14 70 / 0.10)",
-                color: "oklch(0.86 0.14 70)",
-                border: "1px solid oklch(0.82 0.14 70 / 0.25)",
+                background: "rgba(178, 107, 0, 0.08)",
+                color: "var(--warning)",
+                border: "1px solid rgba(178, 107, 0, 0.22)",
               }}
             >
               7–13d
@@ -166,9 +166,9 @@ export default async function DealsPage() {
                 fontSize: 9.5,
                 padding: "1px 5px",
                 borderRadius: 3,
-                background: "oklch(0.70 0.20 25 / 0.10)",
-                color: "oklch(0.80 0.20 25)",
-                border: "1px solid oklch(0.70 0.20 25 / 0.25)",
+                background: "rgba(199, 38, 60, 0.08)",
+                color: "var(--danger)",
+                border: "1px solid rgba(199, 38, 60, 0.22)",
               }}
             >
               14d+

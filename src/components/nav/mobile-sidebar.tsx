@@ -87,7 +87,7 @@ export function MobileSidebarTrigger({ children }: { children: ReactNode }) {
             style={{
               width: 232,
               height: "100vh",
-              background: "var(--panel-2)",
+              background: "var(--paper)",
             }}
             onClick={(e) => e.stopPropagation()}
             onClickCapture={(e) => {

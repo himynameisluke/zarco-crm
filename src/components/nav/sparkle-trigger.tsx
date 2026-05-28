@@ -12,7 +12,7 @@ export function SparkleTrigger() {
         window.dispatchEvent(new Event("zarco:command-palette:open"));
       }}
     >
-      <Sparkles size={15} color="var(--amber)" />
+      <Sparkles size={15} color="var(--magenta)" />
     </button>
   );
 }

@@ -1,19 +1,26 @@
 /**
  * Deterministic colour assignment for tinted avatars and dots.
  * Used to give each organisation a consistent visual identity across views.
+ *
+ * Zarco design system v2 is officially "paper + ink + one magenta" — no
+ * decorative colors. For per-org avatar tints (a stand-in for a real logo)
+ * we still want some visual variety so 30 rows don't read as a wall of ink.
+ * The compromise: a tight palette of muted ink-friendly tones that read
+ * quietly on paper. None compete with magenta; none introduce a "second
+ * accent" the eye could mistake for brand color.
  */
 const ORG_PALETTE = [
-  "#5EE07B", // green
-  "#7FCFE5", // teal
-  "#A78BFA", // violet
-  "#F472B6", // pink
-  "#FBBF24", // amber
-  "#F97316", // orange
-  "#60A5FA", // blue
+  "#2A2A29", // ink
+  "#5C5C5A", // ink-60
+  "#1F7A4D", // success green (quiet)
+  "#1E5FBE", // info blue (quiet)
+  "#B26B00", // warning amber (quiet)
+  "#C7263C", // danger red (quiet)
+  "#7C3AED", // muted violet (one fallback for variety)
 ] as const;
 
 export function colorFromString(value: string | null | undefined): string {
-  if (!value) return "#7FCFE5";
+  if (!value) return ORG_PALETTE[0];
   let hash = 0;
   for (let i = 0; i < value.length; i++) {
     hash = (hash * 31 + value.charCodeAt(i)) | 0;

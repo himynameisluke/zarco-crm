@@ -1,90 +1,130 @@
 @import "tailwindcss";
 
 /* ─────────────────────────────────────────────────────────────────────────
- * Zarco Design System tokens — deep-navy refresh
- * Adapted from: claude.ai/design handoff (May 2026)
+ * Zarco Design System tokens — paper, ink, and one magenta.
+ * Source of truth: claude.ai/design handoff "Zarco Design System" (May 2026).
+ *
+ * The codebase shipped on the previous dark-navy/amber system. Hundreds of
+ * components reference the legacy token names (--bg, --bg-2, --panel-2,
+ * --ink-3, --hairline, --amber, --surface-3, etc) and recipe classes (.btn,
+ * .input, .tbl, .nav-item, .chip, .dot, .zk-avatar). Rather than rip those
+ * out, we re-bind the SAME variable names to paper/ink/magenta values.
+ *
+ * Concretely:
+ *   --bg / --bg-2 / --panel / --panel-2  →  paper + paper-pure
+ *   --ink / --ink-2..4                   →  near-black + ink alpha scale
+ *   --hairline / --line                  →  ink-20 borders
+ *   --surface-1..4 / --hover             →  ink-04 row washes
+ *   --amber / --amber-soft / --accent-*  →  magenta + magenta-wash
+ *
+ * Everything downstream inherits the new look automatically.
  * ───────────────────────────────────────────────────────────────────────── */
 
 :root {
-  /* Surfaces — deep navy, layered */
-  --bg:       #0E1A2E;
-  --bg-2:     #152238;
-  --bg-3:     #1C2A42;
-  --panel:    #11192B;
-  --panel-2:  #0C1424;
+  /* ── Brand foundation (the only three colors) ───────────────────────── */
+  --paper:        #FAFAF7;   /* warm off-white, the default surface */
+  --paper-pure:   #FFFFFF;   /* white tiles on paper (cards, tables) */
+  --ink-raw:      #0E0E0E;   /* near-black, body type, headlines */
 
-  /* Lines / hairlines */
-  --line:         rgba(255, 255, 255, 0.10);
-  --line-strong:  rgba(255, 255, 255, 0.18);
-  --hairline:     rgba(255, 255, 255, 0.07);
-  --hairline-2:   rgba(255, 255, 255, 0.12);
+  /* Ink scale — pre-baked solid colors so SSR matches client */
+  --ink-100: #0E0E0E;
+  --ink-80:  #2A2A29;
+  --ink-60:  #5C5C5A;
+  --ink-40:  #8E8E8C;
+  --ink-20:  #D6D6D3;        /* default border / divider color */
+  --ink-10:  #EAEAE6;        /* light row separator */
+  --ink-04:  #F2F2EE;        /* hover wash */
 
-  /* Glass surface lifts */
-  --surface-1: rgba(255, 255, 255, 0.015);
-  --surface-2: rgba(255, 255, 255, 0.025);
-  --surface-3: rgba(255, 255, 255, 0.04);
-  --surface-4: rgba(255, 255, 255, 0.06);
-  --hover:        rgba(255, 255, 255, 0.035);
-  --hover-strong: rgba(255, 255, 255, 0.06);
+  /* The single accent */
+  --magenta:        #FF0066;
+  --magenta-deep:   #D9004F;   /* hover state */
+  --magenta-wash:   #FFE5EE;   /* selected rows, tints, soft pills */
+  --magenta-ink:    #B30049;   /* magenta text legible on paper */
 
-  /* Ink — warm off-white at four opacities */
-  --ink:    #F5F1EA;
-  --ink-2:  rgba(245, 241, 234, 0.85);
-  --ink-3:  rgba(245, 241, 234, 0.60);
-  --ink-4:  rgba(245, 241, 234, 0.38);
+  /* ── Status (quiet — these read as text states, not color blocks) ───── */
+  --success:  #1F7A4D;
+  --warning:  #B26B00;
+  --danger:   #C7263C;
+  --info:     #1E5FBE;
 
-  /* Brand accents */
-  --amber:        oklch(0.78 0.20 145);
-  --amber-soft:   oklch(0.78 0.20 145 / 0.16);
-  --accent-tint:  oklch(0.78 0.20 145 / 0.06);
-  --cyan:         oklch(0.82 0.08 220);
+  /* ── Legacy token compatibility layer ───────────────────────────────── */
+  /* Surfaces — the old "deeper than deep" palette flattens to paper */
+  --bg:        var(--paper);
+  --bg-2:      var(--paper-pure);   /* table head / inset surface */
+  --bg-3:      var(--ink-04);       /* low-contrast tile (rare) */
+  --panel:     var(--paper-pure);   /* cards */
+  --panel-2:   var(--paper);        /* sidebar, was a "deeper" navy */
 
-  /* Semantic status (oklch family, sits next to amber comfortably) */
-  --ok:     oklch(0.78 0.18 145);
-  --warn:   oklch(0.82 0.14 70);
-  --danger: oklch(0.70 0.20 25);
-  --info:   oklch(0.78 0.10 220);
+  /* Lines / hairlines all collapse onto --ink-20 */
+  --line:         var(--ink-20);
+  --line-strong:  var(--ink-40);
+  --hairline:     var(--ink-20);
+  --hairline-2:   var(--ink-40);
 
-  /* Font stacks — Inter for UI, Space Grotesk for display, JetBrains Mono for IDs/data */
-  --ui:      var(--font-inter), system-ui, -apple-system, sans-serif;
-  --display: var(--font-space-grotesk), system-ui, sans-serif;
-  --code:    var(--font-jetbrains-mono), ui-monospace, monospace;
+  /* Surface lifts — previously translucent whites on dark, now ink washes
+     on paper. ink-04 is the canonical hover; ink-10 a touch stronger. */
+  --surface-1:    var(--paper);
+  --surface-2:    var(--paper-pure);
+  --surface-3:    var(--paper-pure);
+  --surface-4:    var(--ink-04);
+  --hover:        var(--ink-04);
+  --hover-strong: var(--ink-10);
 
-  /* Product rhythm (tighter than marketing-site spacing) */
+  /* Ink alphas the old code addresses by name. Solid values so no
+     opacity-on-opacity surprises when composed against tinted backgrounds. */
+  --ink:    var(--ink-100);
+  --ink-2:  var(--ink-80);
+  --ink-3:  var(--ink-60);
+  --ink-4:  var(--ink-40);
+
+  /* The amber accent disappears. Anything that read amber now reads magenta. */
+  --amber:        var(--magenta);
+  --amber-soft:   var(--magenta-wash);
+  --accent-tint:  var(--magenta-wash);
+  --cyan:         var(--info);
+
+  /* Semantic status aliases (kept for chip/dot recipes) */
+  --ok:     var(--success);
+  --warn:   var(--warning);
+
+  /* ── Typography ─────────────────────────────────────────────────────── */
+  --ui:       var(--font-hanken), ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+  --display:  var(--font-hanken), ui-sans-serif, system-ui, sans-serif;
+  --serif:    var(--font-dm-serif), "Times New Roman", Georgia, serif;
+  --code:     var(--font-jetbrains-mono), ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+
+  /* Product rhythm (unchanged — these are layout densities, not brand) */
   --row-h:    36px;
   --row-h-sm: 30px;
   --ctrl-h:   30px;
 
-  /* Radii */
-  --r-sm:  6px;
-  --r-md:  10px;
-  --r-lg:  14px;
-  --r-xl:  18px;
-  --r-2xl: 22px;
+  /* Radii — tightened to design's 4 / 8 / 16 family */
+  --r-sm:  4px;
+  --r-md:  6px;
+  --r-lg:  8px;
+  --r-xl:  12px;
+  --r-2xl: 16px;
 
-  /* ── Map shadcn-style semantic names onto Zarco tokens ──
-   * Existing pages use bg-background, text-foreground, bg-card etc. via
-   * Tailwind classes. Pointing those classes at Zarco tokens means every
-   * page inherits the new look without per-file edits. */
-  --background: var(--bg);
+  /* ── Shadcn semantic mappings ───────────────────────────────────────── */
+  --background: var(--paper);
   --foreground: var(--ink);
-  --card: var(--panel);
+  --card: var(--paper-pure);
   --card-foreground: var(--ink);
-  --popover: var(--bg-2);
+  --popover: var(--paper-pure);
   --popover-foreground: var(--ink);
-  --primary: var(--amber);
-  --primary-foreground: #0B1220;
-  --secondary: var(--surface-3);
-  --secondary-foreground: var(--ink-2);
-  --muted: var(--surface-2);
-  --muted-foreground: var(--ink-3);
-  --accent: var(--hover);
+  --primary: var(--magenta);
+  --primary-foreground: var(--paper);
+  --secondary: var(--ink-04);
+  --secondary-foreground: var(--ink-80);
+  --muted: var(--ink-04);
+  --muted-foreground: var(--ink-60);
+  --accent: var(--ink-04);
   --accent-foreground: var(--ink);
   --destructive: var(--danger);
-  --destructive-foreground: var(--ink);
-  --border: var(--hairline);
-  --input: var(--hairline);
-  --ring: var(--amber);
+  --destructive-foreground: var(--paper);
+  --border: var(--ink-20);
+  --input: var(--ink-20);
+  --ring: var(--magenta);
 }
 
 @theme inline {
@@ -110,192 +150,312 @@
   --font-sans: var(--ui);
   --font-mono: var(--code);
   --font-display: var(--display);
+  --font-serif: var(--serif);
 }
 
 html,
 body {
-  background: var(--bg);
+  background: var(--paper);
   color: var(--ink);
   font-family: var(--ui);
-  font-feature-settings: "ss01", "cv11";
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
 }
 
 ::selection {
-  background: var(--amber);
-  color: var(--bg);
+  background: var(--magenta);
+  color: var(--paper);
+}
+
+/* Focus rings always visible — discipline of the system. */
+:focus-visible {
+  outline: 2px solid var(--magenta);
+  outline-offset: 2px;
+  border-radius: 2px;
 }
 
 /* ─────────────────────────────────────────────────────────────────────────
- * Product class recipes — faithful port of design/app/styles.css
- * Use directly: <button className="btn">, <span className="chip --ok">…
+ * Product class recipes — same names as v1 so component files don't change.
+ * Values flipped from dark-on-amber to paper-on-ink-on-magenta.
  * ───────────────────────────────────────────────────────────────────────── */
 
-/* Typography */
-.t-display { font-family: var(--display); font-weight: 500; letter-spacing: -0.02em; }
-.t-num     { font-family: var(--display); font-weight: 500; font-variant-numeric: tabular-nums; letter-spacing: -0.02em; }
+/* Typography ---------------------------------------------------------- */
+.t-display {
+  font-family: var(--display);
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  color: var(--ink);
+}
+/* DM Serif italic for editorial accents inside display headlines:
+   <h1 class="t-display">AI systems for <em>operators</em>.</h1> */
+.t-display em,
+.t-display i {
+  font-family: var(--serif);
+  font-style: italic;
+  font-weight: 400;
+}
+.t-num {
+  font-family: var(--display);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.02em;
+}
 .t-mono    { font-family: var(--code); font-feature-settings: "ss02"; }
-.t-eyebrow { font-family: var(--code); font-size: 10.5px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--ink-3); }
-.t-label   { font-family: var(--ui); font-size: 11.5px; font-weight: 500; color: var(--ink-3); letter-spacing: 0.01em; }
-.t-muted   { color: var(--ink-3); }
-.t-faint   { color: var(--ink-4); }
+.t-eyebrow {
+  font-family: var(--code);
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ink-40);
+  font-weight: 500;
+}
+.t-label {
+  font-family: var(--ui);
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--ink-60);
+  letter-spacing: 0.005em;
+}
+.t-muted { color: var(--ink-60); }
+.t-faint { color: var(--ink-40); }
 
-/* Buttons */
+/* Buttons ------------------------------------------------------------- */
+/* Default ("secondary" in the new design) — paper with hairline border. */
 .btn {
   display: inline-flex; align-items: center; gap: 6px;
-  height: var(--ctrl-h); padding: 0 10px;
-  font-size: 12.5px; font-weight: 500;
-  border-radius: 7px;
-  background: var(--surface-3);
-  border: 1px solid var(--hairline);
-  color: var(--ink-2);
-  transition: background .15s, border-color .15s, color .15s, transform .15s;
+  height: var(--ctrl-h); padding: 0 12px;
+  font-size: 13px; font-weight: 500;
+  border-radius: var(--r-md);
+  background: var(--paper);
+  border: 1px solid var(--ink-20);
+  color: var(--ink);
+  transition: background 120ms cubic-bezier(0.22, 1, 0.36, 1),
+              border-color 120ms cubic-bezier(0.22, 1, 0.36, 1),
+              color 120ms cubic-bezier(0.22, 1, 0.36, 1);
   cursor: pointer;
 }
-.btn:hover { background: var(--surface-4); border-color: var(--hairline-2); color: var(--ink); }
-.btn-primary {
-  background: var(--amber);
-  color: #0B1220;
-  border-color: transparent;
-  box-shadow:
-    0 1px 0 rgba(255, 255, 255, 0.5) inset,
-    0 0 0 1px rgba(0, 0, 0, 0.1),
-    0 6px 18px -8px var(--amber-soft);
+.btn:hover {
+  background: var(--ink-04);
+  border-color: var(--ink-40);
+  color: var(--ink);
 }
-.btn-primary:hover { background: oklch(0.83 0.20 145); color: #0B1220; }
-.btn-ghost { background: transparent; border-color: transparent; color: var(--ink-3); }
-.btn-ghost:hover { background: var(--hover); color: var(--ink); border-color: transparent; }
-.btn-icon { width: var(--ctrl-h); padding: 0; justify-content: center; }
-.btn-sm   { height: 26px; padding: 0 8px; font-size: 12px; border-radius: 6px; }
+.btn:active { opacity: 0.88; }
 
-/* Inputs */
+/* Primary — the magenta moment. Used sparingly. */
+.btn-primary {
+  background: var(--magenta);
+  color: var(--paper);
+  border-color: transparent;
+  box-shadow: none;
+}
+.btn-primary:hover {
+  background: var(--magenta-deep);
+  color: var(--paper);
+  border-color: transparent;
+}
+
+/* Ghost — invisible until hovered. For inline / icon-only actions. */
+.btn-ghost {
+  background: transparent;
+  border-color: transparent;
+  color: var(--ink-60);
+}
+.btn-ghost:hover {
+  background: var(--ink-04);
+  color: var(--ink);
+  border-color: transparent;
+}
+
+.btn-icon { width: var(--ctrl-h); padding: 0; justify-content: center; }
+.btn-sm   { height: 26px; padding: 0 10px; font-size: 12.5px; border-radius: var(--r-sm); }
+
+/* Inputs -------------------------------------------------------------- */
 .input {
   display: inline-flex; align-items: center; gap: 8px;
   height: var(--ctrl-h); padding: 0 10px;
-  background: var(--surface-2);
-  border: 1px solid var(--hairline);
-  border-radius: 7px;
-  color: var(--ink-2);
+  background: var(--paper-pure);
+  border: 1px solid var(--ink-20);
+  border-radius: var(--r-md);
+  color: var(--ink);
   font-size: 13px;
   width: 100%;
-  transition: border-color .15s, background .15s, box-shadow .15s;
+  transition: border-color 120ms cubic-bezier(0.22, 1, 0.36, 1),
+              box-shadow 120ms cubic-bezier(0.22, 1, 0.36, 1);
 }
-.input:focus-within { border-color: rgba(255, 255, 255, 0.25); background: var(--surface-3); }
-.input input { background: transparent; border: 0; outline: 0; flex: 1; min-width: 0; color: inherit; font: inherit; }
-.input input::placeholder { color: var(--ink-4); }
+.input:focus-within {
+  border-color: var(--ink-40);
+  outline: none;
+  box-shadow: 0 0 0 3px var(--magenta-wash);
+}
+.input input {
+  background: transparent; border: 0; outline: 0;
+  flex: 1; min-width: 0; color: inherit; font: inherit;
+}
+.input input::placeholder { color: var(--ink-40); }
 
-/* Keyboard chip */
+/* Keyboard chip ------------------------------------------------------- */
 .kbd {
-  font-family: var(--code); font-size: 10.5px;
-  padding: 1px 5px 2px;
-  background: rgba(255, 255, 255, 0.06);
-  border: 1px solid var(--hairline);
-  border-bottom-width: 2px;
-  border-radius: 4px;
-  color: var(--ink-3);
+  font-family: var(--code);
+  font-size: 11px;
+  padding: 2px 6px;
+  background: var(--paper);
+  border: 1px solid var(--ink-20);
+  border-radius: var(--r-sm);
+  color: var(--ink-40);
   letter-spacing: 0.02em;
 }
 
-/* Chips / pills */
+/* Chips / pills ------------------------------------------------------- */
+/* Default chip — neutral surface for tags and minor labels. */
 .chip {
   display: inline-flex; align-items: center; gap: 6px;
   height: 22px; padding: 0 8px;
   font-size: 11.5px; font-weight: 500;
-  background: rgba(255, 255, 255, 0.05);
-  border: 1px solid var(--hairline);
-  color: var(--ink-2);
-  border-radius: 5px;
+  background: var(--ink-04);
+  border: 1px solid var(--ink-20);
+  color: var(--ink-80);
+  border-radius: var(--r-pill, 999px);
 }
-.chip.\--ok     { background: oklch(0.78 0.18 145 / 0.10); color: oklch(0.85 0.18 145); border-color: oklch(0.78 0.18 145 / 0.25); }
-.chip.\--warn   { background: oklch(0.82 0.14 70 / 0.10); color: oklch(0.88 0.14 70); border-color: oklch(0.82 0.14 70 / 0.25); }
-.chip.\--danger { background: oklch(0.70 0.20 25 / 0.10); color: oklch(0.80 0.20 25); border-color: oklch(0.70 0.20 25 / 0.25); }
-.chip.\--info   { background: oklch(0.78 0.10 220 / 0.10); color: oklch(0.86 0.10 220); border-color: oklch(0.78 0.10 220 / 0.25); }
-.chip.\--mute   { color: var(--ink-3); }
-.chip.\--solid  { background: var(--amber); color: #0B1220; border-color: transparent; }
+/* Status chips — quiet washes, never blocks. The text carries the weight. */
+.chip.\--ok {
+  background: rgba(31, 122, 77, 0.10);
+  color: var(--success);
+  border-color: rgba(31, 122, 77, 0.25);
+}
+.chip.\--warn {
+  background: rgba(178, 107, 0, 0.10);
+  color: var(--warning);
+  border-color: rgba(178, 107, 0, 0.25);
+}
+.chip.\--danger {
+  background: rgba(199, 38, 60, 0.10);
+  color: var(--danger);
+  border-color: rgba(199, 38, 60, 0.25);
+}
+.chip.\--info {
+  background: rgba(30, 95, 190, 0.10);
+  color: var(--info);
+  border-color: rgba(30, 95, 190, 0.25);
+}
+.chip.\--mute  { color: var(--ink-60); }
+/* "Solid" used to be amber-on-navy; now it's the rare magenta moment. */
+.chip.\--solid {
+  background: var(--magenta);
+  color: var(--paper);
+  border-color: transparent;
+}
+/* New: a soft magenta pill for tags ("Finance", "Production" style). */
+.chip.\--accent {
+  background: var(--magenta-wash);
+  color: var(--magenta-ink);
+  border-color: transparent;
+}
 
-/* Indicator dots */
-.dot { width: 6px; height: 6px; border-radius: 50%; background: var(--ink-4); flex-shrink: 0; display: inline-block; }
-.dot.\--ok     { background: var(--ok); box-shadow: 0 0 8px oklch(0.78 0.18 145 / 0.5); }
-.dot.\--warn   { background: var(--warn); }
+/* Indicator dots ------------------------------------------------------ */
+.dot {
+  width: 6px; height: 6px; border-radius: 50%;
+  background: var(--ink-40); flex-shrink: 0; display: inline-block;
+}
+.dot.\--ok     { background: var(--success); }
+.dot.\--warn   { background: var(--warning); }
 .dot.\--danger { background: var(--danger); }
 .dot.\--info   { background: var(--info); }
-.dot.\--amber  { background: var(--amber); box-shadow: 0 0 8px var(--amber-soft); }
+/* Legacy --amber dot now signals "accent / live" with magenta. */
+.dot.\--amber  { background: var(--magenta); }
 
-/* Avatars */
+/* Avatars ------------------------------------------------------------- */
 .zk-avatar {
   display: inline-flex; align-items: center; justify-content: center;
   width: 22px; height: 22px; border-radius: 50%;
-  background: var(--bg-3);
-  color: var(--ink);
-  font-size: 10.5px; font-weight: 600;
-  border: 1px solid var(--hairline);
+  background: var(--ink);
+  color: var(--paper);
+  font-size: 10.5px; font-weight: 700;
+  letter-spacing: 0.02em;
   flex-shrink: 0;
 }
 .zk-avatar-lg { width: 36px; height: 36px; font-size: 13px; }
 .zk-avatar-xl { width: 56px; height: 56px; font-size: 18px; }
 
-/* Sidebar nav item */
+/* Sidebar nav item ---------------------------------------------------- */
+/* New design treats the active item as ink-on-paper (inverted), not a tint. */
 .nav-item {
   display: flex; align-items: center; gap: 10px;
   padding: 0 11px; height: 32px;
-  border-radius: 6px;
-  color: var(--ink-3);
-  font-size: 13px; font-weight: 450;
+  border-radius: var(--r-md);
+  color: var(--ink-80);
+  font-size: 13.5px; font-weight: 500;
   cursor: pointer;
-  transition: background .12s, color .12s;
+  transition: background 120ms cubic-bezier(0.22, 1, 0.36, 1),
+              color 120ms cubic-bezier(0.22, 1, 0.36, 1);
 }
-.nav-item:hover { background: var(--hover); color: var(--ink); }
-.nav-item.\--active { background: var(--hover-strong); color: var(--ink); }
-.nav-item.\--active .ni-ico { color: var(--amber); }
-.nav-item .ni-ico { color: var(--ink-3); flex-shrink: 0; }
-.nav-item .ni-count { margin-left: auto; font-family: var(--code); font-size: 10.5px; color: var(--ink-4); }
+.nav-item:hover { background: var(--ink-04); color: var(--ink); }
+.nav-item.\--active {
+  background: var(--ink);
+  color: var(--paper);
+}
+.nav-item.\--active .ni-ico { color: var(--paper); }
+.nav-item .ni-ico { color: var(--ink-60); flex-shrink: 0; }
+.nav-item.\--active .ni-count { color: var(--paper); opacity: 0.7; }
+.nav-item .ni-count {
+  margin-left: auto;
+  font-family: var(--code);
+  font-size: 11px;
+  color: var(--ink-40);
+}
 
-/* Tables */
+/* Tables -------------------------------------------------------------- */
 .tbl { width: 100%; border-collapse: collapse; }
 .tbl thead th {
   text-align: left;
-  font-family: var(--ui); font-weight: 500; font-size: 11.5px;
-  color: var(--ink-3); letter-spacing: 0.01em;
+  font-family: var(--code);
+  font-weight: 500;
+  font-size: 11px;
+  color: var(--ink-40);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
   padding: 0 12px;
-  height: 30px;
-  border-bottom: 1px solid var(--hairline);
-  background: rgba(255, 255, 255, 0.012);
+  height: 36px;
+  border-bottom: 1px solid var(--ink-20);
+  background: var(--paper);
   position: sticky; top: 0;
 }
 .tbl tbody td {
   padding: 0 12px;
   height: var(--row-h);
-  font-size: 13px;
-  border-bottom: 1px solid var(--hairline);
-  color: var(--ink-2);
+  font-size: 13.5px;
+  border-bottom: 1px solid var(--ink-10);
+  color: var(--ink);
   vertical-align: middle;
   white-space: nowrap;
+  background: var(--paper-pure);
 }
-.tbl tbody tr:hover td { background: var(--hover); color: var(--ink); }
-.tbl tbody tr.\--sel td { background: var(--accent-tint); }
+.tbl tbody tr:hover td { background: var(--ink-04); }
+.tbl tbody tr.\--sel td { background: var(--magenta-wash); }
 
-/* Screen wrapper — grain texture overlay (signature design touch) */
+/* Cards --------------------------------------------------------------- */
+/* The system avoids drop shadows on cards. 1px border + paper-pure does
+   the elevation work. (Old code used .card classes inconsistently — this
+   .card recipe just documents the canonical look.) */
+.card {
+  background: var(--paper-pure);
+  border: 1px solid var(--ink-20);
+  border-radius: var(--r-lg);
+}
+
+/* Screen wrapper — kept for backwards compat. The grain overlay made sense
+   on the old dark surface; on paper it's noise. We render the wrapper inert
+   so existing pages don't break, but no longer apply the overlay. */
 .screen {
   position: relative;
-  background: var(--bg);
+  background: var(--paper);
   color: var(--ink);
-  overflow: hidden;
 }
-.screen::before {
-  content: "";
-  position: absolute; inset: 0;
-  background-image: url("/grain.svg");
-  background-size: 200px;
-  opacity: 0.18;
-  mix-blend-mode: overlay;
-  pointer-events: none;
-  z-index: 1;
-}
-.screen > * { position: relative; z-index: 2; }
 
-/* Scrollbar — subtle, matches dark UI */
+/* Scrollbar — quiet on paper */
 ::-webkit-scrollbar { width: 8px; height: 8px; }
-::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.08); border-radius: 999px; }
-::-webkit-scrollbar-thumb:hover { background: rgba(255, 255, 255, 0.15); }
+::-webkit-scrollbar-thumb {
+  background: var(--ink-20);
+  border-radius: 999px;
+}
+::-webkit-scrollbar-thumb:hover { background: var(--ink-40); }
 ::-webkit-scrollbar-track { background: transparent; }

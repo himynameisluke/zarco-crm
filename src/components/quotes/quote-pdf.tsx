@@ -5,34 +5,34 @@ import {
   View,
   StyleSheet,
   Svg,
-  Circle,
-  Defs,
-  LinearGradient,
-  Stop,
+  Rect,
+  Polygon,
 } from "@react-pdf/renderer";
 
 // =============================================================================
-// Zarco-branded quote PDF
+// Zarco-branded quote PDF — design system v2 (paper / ink / one magenta).
 // =============================================================================
-// A4 portrait, white paper. Brand accents:
-//   - Deep navy ink (#0E1A2E) for text and dividers
-//   - Amber-green primary (#7FCE85) for the ring mark + accent rules
+// A4 portrait, warm off-white paper. Brand:
+//   - Paper background (#FAFAF7)
+//   - Near-black ink (#0E0E0E) for text, dividers, and the Z tile
+//   - Magenta accent (#FF0066) for the wordmark period, accent rule, corner
+//     notch on the Z mark, and the "Total" emphasis.
 //
-// Typography is built-in Helvetica for now — react-pdf needs Font.register()
-// to use Inter / Space Grotesk and that requires shipping the .ttf files. The
-// PDF reads as Zarco-branded via colour + the ring mark; we can swap in the
-// real brand fonts in a follow-up without changing the layout.
+// Typography is built-in Helvetica for now — @react-pdf needs Font.register()
+// for Hanken Grotesk / DM Serif Display, which means shipping .ttf files.
+// The PDF still reads as on-brand via color + the corner-notch mark; we can
+// swap in the real Zarco fonts later without touching layout.
 
 const BRAND = {
-  ink: "#0E1A2E",
-  inkMuted: "rgba(14,26,46,0.62)",
-  inkFaint: "rgba(14,26,46,0.4)",
-  line: "rgba(14,26,46,0.12)",
-  ringStart: "#5EE07B",
-  ringEnd: "#7FCFE5",
-  primary: "#7FCE85",
-  paper: "#FFFFFF",
-  bandBg: "#F7F5EE",
+  ink: "#0E0E0E",
+  inkMuted: "#5C5C5A",
+  inkFaint: "#8E8E8C",
+  line: "#D6D6D3",
+  magenta: "#FF0066",
+  magentaInk: "#B30049",
+  magentaWash: "#FFE5EE",
+  paper: "#FAFAF7",
+  paperPure: "#FFFFFF",
 } as const;
 
 const styles = StyleSheet.create({
@@ -58,26 +58,34 @@ const styles = StyleSheet.create({
   },
   wordmark: {
     fontFamily: "Helvetica-Bold",
-    fontSize: 18,
-    letterSpacing: -0.4,
+    fontSize: 20,
+    letterSpacing: -0.6,
     color: BRAND.ink,
+  },
+  wordmarkDot: {
+    fontFamily: "Helvetica-Bold",
+    fontSize: 20,
+    color: BRAND.magenta,
   },
   quoteBlock: {
     alignItems: "flex-end",
   },
+  // Eyebrow-style label above the quote number — mono-feel, all caps, faint.
+  quoteEyebrow: {
+    fontSize: 8,
+    letterSpacing: 1.4,
+    color: BRAND.inkFaint,
+    fontFamily: "Helvetica-Bold",
+    marginBottom: 4,
+  },
   quoteTitle: {
     fontFamily: "Helvetica-Bold",
     fontSize: 22,
-    letterSpacing: 1.2,
+    letterSpacing: -0.4,
     color: BRAND.ink,
   },
-  quoteMeta: {
-    fontSize: 9,
-    color: BRAND.inkMuted,
-    marginTop: 4,
-  },
   statusPill: {
-    marginTop: 6,
+    marginTop: 8,
     paddingHorizontal: 8,
     paddingVertical: 3,
     borderRadius: 999,
@@ -85,10 +93,11 @@ const styles = StyleSheet.create({
     letterSpacing: 0.6,
     fontFamily: "Helvetica-Bold",
   },
+  // 56px magenta hairline below the header. The one rare moment of accent.
   accentRule: {
     height: 2,
     width: 56,
-    backgroundColor: BRAND.primary,
+    backgroundColor: BRAND.magenta,
     marginBottom: 18,
   },
   partiesRow: {
@@ -178,7 +187,9 @@ const styles = StyleSheet.create({
   notesBlock: {
     marginTop: 28,
     padding: 14,
-    backgroundColor: BRAND.bandBg,
+    backgroundColor: BRAND.paperPure,
+    borderWidth: 1,
+    borderColor: BRAND.line,
     borderRadius: 6,
   },
   notesHeader: {
@@ -209,37 +220,61 @@ const styles = StyleSheet.create({
   },
 });
 
+// Status pills on the PDF — quiet washes, status-color text. Same intent as
+// the in-app .chip recipes but in PDF colors (no rgba on rgba surprises).
 const STATUS_COLOR: Record<string, { bg: string; fg: string }> = {
-  draft: { bg: "rgba(14,26,46,0.08)", fg: "#0E1A2E" },
-  sent: { bg: "rgba(127,207,229,0.18)", fg: "#1F5E7A" },
-  viewed: { bg: "rgba(127,207,229,0.18)", fg: "#1F5E7A" },
-  accepted: { bg: "rgba(127,206,133,0.20)", fg: "#1F6A33" },
-  declined: { bg: "rgba(217,82,82,0.16)", fg: "#7A1F1F" },
-  expired: { bg: "rgba(14,26,46,0.08)", fg: "rgba(14,26,46,0.55)" },
+  draft: { bg: "#F2F2EE", fg: BRAND.ink },
+  sent: { bg: "#E4ECF8", fg: "#1E5FBE" },
+  viewed: { bg: "#E4ECF8", fg: "#1E5FBE" },
+  accepted: { bg: "#E5F1EB", fg: "#1F7A4D" },
+  declined: { bg: "#F8E4E7", fg: "#C7263C" },
+  expired: { bg: "#F2F2EE", fg: BRAND.inkMuted },
 };
 
-function ZarcoRing({ size = 28 }: { size?: number }) {
-  // Hollow ring with the green→teal gradient stroke. Mirrors the favicon /
-  // brand mark from the Zarco design system.
-  const stroke = size * 0.18;
-  const r = (size - stroke) / 2;
+/**
+ * The Zarco mark — heavy Z on a near-black tile with a magenta corner notch.
+ * Mirrors the in-app ZarcoMark and the bundled brand-mark.svg.
+ *
+ * The tile + notch are SVG primitives so they crisp at any zoom. The Z glyph
+ * uses a plain `<Text>` positioned absolutely inside the tile because
+ * @react-pdf's <Svg><Text> doesn't accept fontFamily/fontWeight props.
+ */
+function ZarcoMark({ size = 32 }: { size?: number }) {
+  const radius = Math.max(4, size * 0.15);
+  const notch = Math.max(6, size * 0.3);
+  const fontSize = Math.round(size * 0.62);
   return (
-    <Svg width={size} height={size} viewBox={`0 0 ${size} ${size}`}>
-      <Defs>
-        <LinearGradient id="zk-ring" x1="0" y1="0" x2="1" y2="1">
-          <Stop offset="0" stopColor={BRAND.ringStart} />
-          <Stop offset="1" stopColor={BRAND.ringEnd} />
-        </LinearGradient>
-      </Defs>
-      <Circle
-        cx={size / 2}
-        cy={size / 2}
-        r={r}
-        stroke="url(#zk-ring)"
-        strokeWidth={stroke}
-        fill="none"
-      />
-    </Svg>
+    <View style={{ width: size, height: size, position: "relative" }}>
+      <Svg
+        width={size}
+        height={size}
+        viewBox={`0 0 ${size} ${size}`}
+        style={{ position: "absolute", top: 0, left: 0 }}
+      >
+        <Rect width={size} height={size} rx={radius} fill={BRAND.ink} />
+        <Polygon
+          points={`${size},0 ${size},${notch} ${size - notch},0`}
+          fill={BRAND.magenta}
+        />
+      </Svg>
+      <Text
+        style={{
+          position: "absolute",
+          top: 0,
+          left: 0,
+          width: size,
+          height: size,
+          textAlign: "center",
+          paddingTop: Math.round(size * 0.15),
+          color: BRAND.paper,
+          fontFamily: "Helvetica-Bold",
+          fontSize,
+          letterSpacing: -0.5,
+        }}
+      >
+        Z
+      </Text>
+    </View>
   );
 }
 
@@ -319,6 +354,9 @@ export function QuotePdf({
   const contactName = contact
     ? [contact.firstName, contact.lastName].filter(Boolean).join(" ").trim()
     : "";
+  // Wordmark renders the brand name in ink + a single magenta period — the
+  // brand's only sanctioned ornament on the wordmark.
+  const wordmarkName = issuer.name.replace(/\sLtd$/, "");
 
   return (
     <Document
@@ -330,12 +368,15 @@ export function QuotePdf({
         {/* Header: brand left, quote meta right */}
         <View style={styles.header}>
           <View style={styles.brand}>
-            <ZarcoRing size={28} />
-            <Text style={styles.wordmark}>{issuer.name.replace(/\sLtd$/, "")}</Text>
+            <ZarcoMark size={32} />
+            <View style={{ flexDirection: "row", alignItems: "flex-end" }}>
+              <Text style={styles.wordmark}>{wordmarkName}</Text>
+              <Text style={styles.wordmarkDot}>.</Text>
+            </View>
           </View>
           <View style={styles.quoteBlock}>
-            <Text style={styles.quoteTitle}>QUOTE</Text>
-            <Text style={styles.quoteMeta}>{quote.quoteNumber}</Text>
+            <Text style={styles.quoteEyebrow}>QUOTE</Text>
+            <Text style={styles.quoteTitle}>{quote.quoteNumber}</Text>
             <View
               style={[
                 styles.statusPill,

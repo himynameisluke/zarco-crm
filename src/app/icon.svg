@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 80 80" width="80" height="80">
+  <rect width="80" height="80" rx="12" fill="#0E0E0E"/>
+  <polygon points="80,0 80,24 56,0" fill="#FF0066"/>
+  <text x="40" y="58" text-anchor="middle" font-family="Hanken Grotesk, system-ui, sans-serif" font-weight="800" font-size="52" letter-spacing="-0.04em" fill="#FAFAF7">Z</text>
+</svg>

@@ -74,18 +74,18 @@ export function WorkspaceSwitcher({
       <DropdownMenuTrigger
         className={cn(
           "flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left",
-          "hover:bg-[color:var(--hover)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--amber)]",
+          "hover:bg-[color:var(--ink-04)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--magenta)]",
         )}
         style={{
-          background: "transparent",
-          border: "1px solid var(--hairline)",
+          background: "var(--paper-pure)",
+          border: "1px solid var(--ink-20)",
         }}
         disabled={pending}
       >
-        <Building2 size={13} color="var(--ink-3)" />
+        <Building2 size={13} color="var(--ink-60)" />
         <span
           className="truncate"
-          style={{ fontSize: 12.5, color: "var(--ink)", flex: 1 }}
+          style={{ fontSize: 12.5, color: "var(--ink)", flex: 1, fontWeight: 500 }}
         >
           {current?.name ?? "No workspace"}
         </span>
@@ -96,18 +96,19 @@ export function WorkspaceSwitcher({
               fontSize: 9,
               padding: "1px 6px",
               borderRadius: 999,
-              background: "oklch(0.82 0.14 70 / 0.18)",
-              color: "oklch(0.86 0.14 70)",
+              background: "var(--magenta-wash)",
+              color: "var(--magenta-ink)",
               letterSpacing: "0.06em",
+              fontWeight: 600,
             }}
           >
             DEMO
           </span>
         ) : null}
         {pending ? (
-          <Loader2 size={12} className="animate-spin" color="var(--ink-3)" />
+          <Loader2 size={12} className="animate-spin" color="var(--ink-60)" />
         ) : (
-          <ChevronsUpDown size={12} color="var(--ink-4)" />
+          <ChevronsUpDown size={12} color="var(--ink-40)" />
         )}
       </DropdownMenuTrigger>
 
@@ -136,8 +137,8 @@ export function WorkspaceSwitcher({
                 <span className="flex-1 truncate text-sm">{w.name}</span>
                 {w.type === "demo" ? (
                   <span
-                    className="text-[9px] tracking-wide uppercase"
-                    style={{ color: "oklch(0.86 0.14 70)" }}
+                    className="text-[9px] tracking-wide uppercase font-semibold"
+                    style={{ color: "var(--magenta-ink)" }}
                   >
                     Demo
                   </span>
@@ -155,8 +156,8 @@ export function WorkspaceSwitcher({
               <DropdownMenuItem
                 onClick={handleCreateDemo}
                 disabled={pending}
-                className="flex items-center gap-2 cursor-pointer"
-                style={{ color: "oklch(0.86 0.20 145)" }}
+                className="flex items-center gap-2 cursor-pointer font-medium"
+                style={{ color: "var(--magenta)" }}
               >
                 <Sparkles size={12} />
                 <span className="text-sm">Create demo workspace</span>
@@ -164,7 +165,7 @@ export function WorkspaceSwitcher({
             </DropdownMenuGroup>
             <div
               className="px-2 py-1 text-[10.5px]"
-              style={{ color: "var(--ink-4)", lineHeight: 1.4 }}
+              style={{ color: "var(--ink-40)", lineHeight: 1.4 }}
             >
               Spins up a sandbox with fake orgs, deals, contacts, and
               activities. Switch back any time.

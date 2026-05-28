@@ -21,7 +21,7 @@ type ActivityType =
  * Every write tool calls this so there's a single timeline row attached to
  * the affected entity showing what Claude did, on whose behalf. Source is
  * always 'mcp' — this is the load-bearing distinction that lets the UI
- * surface MCP writes differently (zap icon, amber tint).
+ * surface MCP writes differently (zap icon, magenta tint).
  *
  * Errors from the audit insert are caught and logged but never propagate —
  * a failed audit insert should not roll back the underlying write. The

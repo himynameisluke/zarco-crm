@@ -43,15 +43,18 @@ const TYPE_CONFIG: Record<
   string,
   { icon: typeof Mail; color: string; label: string }
 > = {
-  email: { icon: Mail, color: "oklch(0.78 0.10 220)", label: "Email" },
-  call: { icon: Phone, color: "oklch(0.82 0.14 70)", label: "Call" },
-  meeting: { icon: Calendar, color: "oklch(0.78 0.20 145)", label: "Meeting" },
-  note: { icon: StickyNote, color: "var(--ink-3)", label: "Note" },
-  status_change: { icon: ChevronRight, color: "oklch(0.78 0.20 145)", label: "Status" },
-  task_completed: { icon: CheckSquare, color: "var(--ink-3)", label: "Task done" },
-  quote_sent: { icon: FileText, color: "oklch(0.78 0.10 220)", label: "Quote sent" },
-  quote_viewed: { icon: FileText, color: "oklch(0.78 0.10 220)", label: "Quote viewed" },
-  quote_accepted: { icon: FileText, color: "oklch(0.78 0.18 145)", label: "Quote accepted" },
+  // Activity-type icons stay ink-60 — the icon shape carries the meaning, and
+  // the system avoids color-coding by category. The one accent reserved is
+  // for MCP-sourced activity, handled separately downstream.
+  email: { icon: Mail, color: "var(--ink-60)", label: "Email" },
+  call: { icon: Phone, color: "var(--ink-60)", label: "Call" },
+  meeting: { icon: Calendar, color: "var(--ink-60)", label: "Meeting" },
+  note: { icon: StickyNote, color: "var(--ink-60)", label: "Note" },
+  status_change: { icon: ChevronRight, color: "var(--ink-60)", label: "Status" },
+  task_completed: { icon: CheckSquare, color: "var(--success)", label: "Task done" },
+  quote_sent: { icon: FileText, color: "var(--ink-60)", label: "Quote sent" },
+  quote_viewed: { icon: FileText, color: "var(--ink-60)", label: "Quote viewed" },
+  quote_accepted: { icon: FileText, color: "var(--success)", label: "Quote accepted" },
 };
 
 const SOURCE_LABELS: Record<string, string> = {

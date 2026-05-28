@@ -23,34 +23,39 @@ type Deal = {
   primaryContactLastName: string | null;
 };
 
+// Stage dots on kanban column headers. Earlier stages read as cool/neutral
+// ink, the active "act now" stage is the magenta accent, and the terminal
+// stages (won / lost) borrow the system's quiet success/danger.
 const STAGE_ACCENT: Record<DealStage, string> = {
-  lead: "rgba(245,241,234,0.40)",
-  qualified: "oklch(0.78 0.10 220)",
-  proposal: "oklch(0.78 0.20 145)",
-  negotiation: "oklch(0.82 0.14 70)",
-  won: "oklch(0.78 0.18 145)",
-  lost: "oklch(0.70 0.20 25)",
+  lead: "var(--ink-40)",
+  qualified: "var(--info)",
+  proposal: "var(--ink-60)",
+  negotiation: "var(--magenta)",
+  won: "var(--success)",
+  lost: "var(--danger)",
 };
 
+// Days-in-stage chip on each deal card. The colors are quiet washes — the
+// number does the work. ≥14d nudges danger-red, ≥7d uses warning amber.
 function daysChipStyle(days: number) {
   if (days >= 14) {
     return {
-      color: "oklch(0.78 0.20 25)",
-      background: "oklch(0.70 0.20 25 / 0.10)",
-      border: "1px solid oklch(0.70 0.20 25 / 0.25)",
+      color: "var(--danger)",
+      background: "rgba(199, 38, 60, 0.08)",
+      border: "1px solid rgba(199, 38, 60, 0.22)",
     };
   }
   if (days >= 7) {
     return {
-      color: "oklch(0.86 0.14 70)",
-      background: "oklch(0.82 0.14 70 / 0.10)",
-      border: "1px solid oklch(0.82 0.14 70 / 0.25)",
+      color: "var(--warning)",
+      background: "rgba(178, 107, 0, 0.08)",
+      border: "1px solid rgba(178, 107, 0, 0.22)",
     };
   }
   return {
-    color: "var(--ink-3)",
-    background: "rgba(255,255,255,0.04)",
-    border: "1px solid var(--hairline)",
+    color: "var(--ink-60)",
+    background: "var(--ink-04)",
+    border: "1px solid var(--ink-20)",
   };
 }
 
@@ -90,7 +95,7 @@ function DealCard({ deal }: { deal: Deal }) {
       }}
     >
       <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-        <span className="t-mono" style={{ fontSize: 10, color: "var(--ink-4)" }}>
+        <span className="t-mono" style={{ fontSize: 10, color: "var(--ink-40)" }}>
           D-{idSuffix}
         </span>
         {isHot ? (
@@ -100,7 +105,8 @@ function DealCard({ deal }: { deal: Deal }) {
               alignItems: "center",
               gap: 3,
               fontSize: 10,
-              color: "oklch(0.86 0.14 70)",
+              color: "var(--magenta)",
+              fontWeight: 600,
             }}
           >
             <Flame size={11} />
@@ -108,7 +114,7 @@ function DealCard({ deal }: { deal: Deal }) {
           </span>
         ) : null}
         <div style={{ flex: 1 }} />
-        <MoreHorizontal size={12} color="var(--ink-4)" />
+        <MoreHorizontal size={12} color="var(--ink-40)" />
       </div>
 
       <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
@@ -123,7 +129,7 @@ function DealCard({ deal }: { deal: Deal }) {
           {deal.name}
         </div>
         {deal.organizationName ? (
-          <div className="truncate" style={{ fontSize: 11.5, color: "var(--ink-3)" }}>
+          <div className="truncate" style={{ fontSize: 11.5, color: "var(--ink-60)" }}>
             {deal.organizationName}
           </div>
         ) : null}
@@ -165,13 +171,13 @@ function DealCard({ deal }: { deal: Deal }) {
         <span
           style={{
             fontSize: 11,
-            color: "var(--ink-3)",
+            color: "var(--ink-60)",
             display: "inline-flex",
             alignItems: "center",
             gap: 4,
           }}
         >
-          <Calendar size={10} color="var(--ink-4)" />
+          <Calendar size={10} color="var(--ink-40)" />
           {closeDisplay}
         </span>
         <div style={{ flex: 1 }} />
@@ -233,7 +239,7 @@ function StageColumn({
         </span>
         <span
           className="t-mono"
-          style={{ fontSize: 10.5, color: "var(--ink-4)" }}
+          style={{ fontSize: 10.5, color: "var(--ink-40)" }}
         >
           {deals.length}
         </span>
@@ -265,7 +271,7 @@ function StageColumn({
           className="btn btn-ghost btn-sm"
           style={{
             justifyContent: "flex-start",
-            color: "var(--ink-4)",
+            color: "var(--ink-40)",
             padding: "6px 8px",
             textDecoration: "none",
           }}

@@ -83,40 +83,13 @@ export default async function PublicQuotePage({
         alignItems: "center",
         justifyContent: "flex-start",
         padding: "48px 24px",
-        background: "var(--bg)",
+        background: "var(--paper)",
       }}
     >
-      {/* Ambient bloom */}
-      <div
-        style={{
-          position: "absolute",
-          top: -120,
-          right: -160,
-          width: 520,
-          height: 520,
-          borderRadius: "50%",
-          background:
-            "radial-gradient(circle, oklch(0.78 0.20 145 / 0.18), transparent 65%)",
-          filter: "blur(60px)",
-          pointerEvents: "none",
-          zIndex: 1,
-        }}
-      />
-      <div
-        style={{
-          position: "absolute",
-          bottom: -200,
-          left: -180,
-          width: 560,
-          height: 560,
-          borderRadius: "50%",
-          background:
-            "radial-gradient(circle, oklch(0.82 0.08 220 / 0.15), transparent 65%)",
-          filter: "blur(70px)",
-          pointerEvents: "none",
-          zIndex: 1,
-        }}
-      />
+      {/* The previous design had two ambient radial-gradient "blooms" behind
+          the quote. The new system explicitly forbids gradients on backgrounds
+          ("No gradients. No noise. No textures. The texture is the typography").
+          They've been removed — the paper surface stands on its own. */}
 
       <div
         style={{
@@ -135,29 +108,34 @@ export default async function PublicQuotePage({
             marginBottom: 32,
           }}
         >
-          <ZarcoMark size={28} />
-          <div style={{ display: "flex", flexDirection: "column", lineHeight: 1.1 }}>
+          <ZarcoMark size={32} />
+          <div style={{ display: "flex", alignItems: "baseline", gap: 1 }}>
             <span
               style={{
                 fontFamily: "var(--display)",
-                fontSize: 18,
-                fontWeight: 500,
-                letterSpacing: "-0.02em",
+                fontSize: 22,
+                fontWeight: 800,
+                letterSpacing: "-0.03em",
+                color: "var(--ink)",
               }}
             >
               Zarco
             </span>
             <span
-              className="t-mono"
-              style={{ fontSize: 10, color: "var(--ink-4)", letterSpacing: "0.14em" }}
+              style={{
+                fontFamily: "var(--display)",
+                fontSize: 22,
+                fontWeight: 800,
+                color: "var(--magenta)",
+              }}
             >
-              ZRC · UK
+              .
             </span>
           </div>
           <div style={{ flex: 1 }} />
           <span
             className="t-mono"
-            style={{ fontSize: 11, color: "var(--ink-3)" }}
+            style={{ fontSize: 11, color: "var(--ink-60)", letterSpacing: "0.06em" }}
           >
             QUOTE {quote.quoteNumber}
           </span>
@@ -299,17 +277,17 @@ export default async function PublicQuotePage({
                 borderRadius: 8,
                 background:
                   quote.status === "accepted"
-                    ? "oklch(0.78 0.18 145 / 0.10)"
-                    : "oklch(0.70 0.20 25 / 0.10)",
+                    ? "rgba(31, 122, 77, 0.10)"
+                    : "rgba(199, 38, 60, 0.10)",
                 border: `1px solid ${
                   quote.status === "accepted"
-                    ? "oklch(0.78 0.18 145 / 0.30)"
-                    : "oklch(0.70 0.20 25 / 0.30)"
+                    ? "rgba(31, 122, 77, 0.30)"
+                    : "rgba(199, 38, 60, 0.30)"
                 }`,
                 color:
                   quote.status === "accepted"
-                    ? "oklch(0.85 0.18 145)"
-                    : "oklch(0.80 0.20 25)",
+                    ? "var(--success)"
+                    : "var(--danger)",
               }}
             >
               {quote.status === "accepted" ? (
