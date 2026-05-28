@@ -1,89 +1,102 @@
 @import "tailwindcss";
 
 /* ─────────────────────────────────────────────────────────────────────────
- * Zarco Design System tokens — paper, ink, and one magenta.
- * Source of truth: claude.ai/design handoff "Zarco Design System" (May 2026).
+ * Zarco Design System tokens — INVERTED ("ink") mode.
  *
- * The codebase shipped on the previous dark-navy/amber system. Hundreds of
- * components reference the legacy token names (--bg, --bg-2, --panel-2,
- * --ink-3, --hairline, --amber, --surface-3, etc) and recipe classes (.btn,
- * .input, .tbl, .nav-item, .chip, .dot, .zk-avatar). Rather than rip those
- * out, we re-bind the SAME variable names to paper/ink/magenta values.
+ * The design bundle (May 2026) is a paper-first system: paper, ink, and
+ * one magenta. When we built the v2 swap we tried the light version first
+ * but it lost the "tracker" feel — overdue rows / hot deals didn't pop
+ * against a bright background. So we kept the palette (the magenta, the
+ * Hanken Grotesk, the corner-notch mark, the inverted-active nav pattern)
+ * but flipped which token is the surface and which is the foreground:
  *
- * Concretely:
- *   --bg / --bg-2 / --panel / --panel-2  →  paper + paper-pure
- *   --ink / --ink-2..4                   →  near-black + ink alpha scale
- *   --hairline / --line                  →  ink-20 borders
- *   --surface-1..4 / --hover             →  ink-04 row washes
- *   --amber / --amber-soft / --accent-*  →  magenta + magenta-wash
+ *   - --paper / --paper-pure  →  near-black surfaces (was warm off-white)
+ *   - --ink / --ink-80..ink-04 →  warm off-white text + dark hairlines
+ *   - --magenta(-wash)        →  unchanged; pops on dark
  *
- * Everything downstream inherits the new look automatically.
+ * Because every component and every recipe references the *named* tokens
+ * (--paper, --ink, --hairline, etc.), inverting at the token layer flips
+ * the whole UI without touching any component file. The "inverted-active"
+ * nav pattern works in both modes because it swaps semantic names rather
+ * than picking a specific color.
+ *
+ * One thing that stays paper: the Quote PDF. PDFs go to customers — they
+ * are physical artifacts, not UI surfaces. The PDF template hard-codes
+ * its own paper background.
  * ───────────────────────────────────────────────────────────────────────── */
 
 :root {
-  /* ── Brand foundation (the only three colors) ───────────────────────── */
-  --paper:        #FAFAF7;   /* warm off-white, the default surface */
-  --paper-pure:   #FFFFFF;   /* white tiles on paper (cards, tables) */
-  --ink-raw:      #0E0E0E;   /* near-black, body type, headlines */
+  /* ── Brand foundation ───────────────────────────────────────────────── */
+  /* Surface (was warm off-white) — near-ink with a touch of warmth so it
+     never reads as the void of pure black. */
+  --paper:        #0F0F0E;
+  --paper-pure:   #1A1A19;     /* lifted tile (cards, table rows, popovers) */
+  --paper-3:      #232321;     /* the next step up — chip washes, kbd */
 
-  /* Ink scale — pre-baked solid colors so SSR matches client */
-  --ink-100: #0E0E0E;
-  --ink-80:  #2A2A29;
-  --ink-60:  #5C5C5A;
-  --ink-40:  #8E8E8C;
-  --ink-20:  #D6D6D3;        /* default border / divider color */
-  --ink-10:  #EAEAE6;        /* light row separator */
-  --ink-04:  #F2F2EE;        /* hover wash */
+  /* Foreground (was near-black) — warm off-white scale. Names match the
+     paper-first version so semantic recipes flip cleanly. */
+  --ink-100: #FAFAF7;
+  --ink-80:  #E8E8E5;
+  --ink-60:  #ADADA9;
+  --ink-40:  #7E7E7B;
+  --ink-20:  #3A3A38;          /* borders + dividers */
+  --ink-10:  #2A2A28;          /* lighter row separator */
+  --ink-04:  #1F1F1D;          /* hover wash */
 
-  /* The single accent */
+  /* The single accent — magenta. Same hex as the paper-mode version
+     because it reads cleanly on both. */
   --magenta:        #FF0066;
-  --magenta-deep:   #D9004F;   /* hover state */
-  --magenta-wash:   #FFE5EE;   /* selected rows, tints, soft pills */
-  --magenta-ink:    #B30049;   /* magenta text legible on paper */
+  --magenta-deep:   #FF3380;   /* hover — slightly lighter on dark, the way
+                                  --magenta-deep was slightly darker on light */
+  --magenta-wash:   rgba(255, 0, 102, 0.16); /* dark magenta tint */
+  --magenta-ink:    #FF87AE;   /* magenta readable as text on dark surfaces */
 
-  /* ── Status (quiet — these read as text states, not color blocks) ───── */
-  --success:  #1F7A4D;
-  --warning:  #B26B00;
-  --danger:   #C7263C;
-  --info:     #1E5FBE;
+  /* ── Status — bumped saturation so they're legible on dark ────────── */
+  --success:  #4FBA84;
+  --warning:  #E5A03D;
+  --danger:   #E85870;
+  --info:     #5B9BFF;
 
-  /* ── Legacy token compatibility layer ───────────────────────────────── */
-  /* Surfaces — the old "deeper than deep" palette flattens to paper */
+  /* Status washes for tinted pills and overdue chips. Same logic as the
+     magenta wash — translucent over whatever surface they sit on. */
+  --success-wash: rgba(79, 186, 132, 0.14);
+  --success-edge: rgba(79, 186, 132, 0.32);
+  --warning-wash: rgba(229, 160, 61, 0.14);
+  --warning-edge: rgba(229, 160, 61, 0.32);
+  --danger-wash:  rgba(232, 88, 112, 0.14);
+  --danger-edge:  rgba(232, 88, 112, 0.32);
+  --info-wash:    rgba(91, 155, 255, 0.14);
+  --info-edge:    rgba(91, 155, 255, 0.32);
+
+  /* ── Legacy token compatibility ─────────────────────────────────────── */
   --bg:        var(--paper);
-  --bg-2:      var(--paper-pure);   /* table head / inset surface */
-  --bg-3:      var(--ink-04);       /* low-contrast tile (rare) */
-  --panel:     var(--paper-pure);   /* cards */
-  --panel-2:   var(--paper);        /* sidebar, was a "deeper" navy */
+  --bg-2:      var(--paper-pure);
+  --bg-3:      var(--paper-3);
+  --panel:     var(--paper-pure);
+  --panel-2:   var(--paper);
 
-  /* Lines / hairlines all collapse onto --ink-20 */
   --line:         var(--ink-20);
   --line-strong:  var(--ink-40);
   --hairline:     var(--ink-20);
   --hairline-2:   var(--ink-40);
 
-  /* Surface lifts — previously translucent whites on dark, now ink washes
-     on paper. ink-04 is the canonical hover; ink-10 a touch stronger. */
   --surface-1:    var(--paper);
   --surface-2:    var(--paper-pure);
   --surface-3:    var(--paper-pure);
-  --surface-4:    var(--ink-04);
+  --surface-4:    var(--paper-3);
   --hover:        var(--ink-04);
   --hover-strong: var(--ink-10);
 
-  /* Ink alphas the old code addresses by name. Solid values so no
-     opacity-on-opacity surprises when composed against tinted backgrounds. */
   --ink:    var(--ink-100);
   --ink-2:  var(--ink-80);
   --ink-3:  var(--ink-60);
   --ink-4:  var(--ink-40);
 
-  /* The amber accent disappears. Anything that read amber now reads magenta. */
   --amber:        var(--magenta);
   --amber-soft:   var(--magenta-wash);
   --accent-tint:  var(--magenta-wash);
   --cyan:         var(--info);
 
-  /* Semantic status aliases (kept for chip/dot recipes) */
   --ok:     var(--success);
   --warn:   var(--warning);
 
@@ -93,12 +106,10 @@
   --serif:    var(--font-dm-serif), "Times New Roman", Georgia, serif;
   --code:     var(--font-jetbrains-mono), ui-monospace, "SF Mono", Menlo, Consolas, monospace;
 
-  /* Product rhythm (unchanged — these are layout densities, not brand) */
   --row-h:    36px;
   --row-h-sm: 30px;
   --ctrl-h:   30px;
 
-  /* Radii — tightened to design's 4 / 8 / 16 family */
   --r-sm:  4px;
   --r-md:  6px;
   --r-lg:  8px;
@@ -113,15 +124,15 @@
   --popover: var(--paper-pure);
   --popover-foreground: var(--ink);
   --primary: var(--magenta);
-  --primary-foreground: var(--paper);
-  --secondary: var(--ink-04);
+  --primary-foreground: #FFFFFF;
+  --secondary: var(--paper-3);
   --secondary-foreground: var(--ink-80);
-  --muted: var(--ink-04);
+  --muted: var(--paper-3);
   --muted-foreground: var(--ink-60);
-  --accent: var(--ink-04);
+  --accent: var(--paper-3);
   --accent-foreground: var(--ink);
   --destructive: var(--danger);
-  --destructive-foreground: var(--paper);
+  --destructive-foreground: #FFFFFF;
   --border: var(--ink-20);
   --input: var(--ink-20);
   --ring: var(--magenta);
@@ -164,7 +175,7 @@ body {
 
 ::selection {
   background: var(--magenta);
-  color: var(--paper);
+  color: #FFFFFF;
 }
 
 /* Focus rings always visible — discipline of the system. */
@@ -175,8 +186,8 @@ body {
 }
 
 /* ─────────────────────────────────────────────────────────────────────────
- * Product class recipes — same names as v1 so component files don't change.
- * Values flipped from dark-on-amber to paper-on-ink-on-magenta.
+ * Product class recipes — class names match v1 so component files don't
+ * change. Values target the inverted (dark surface) mode.
  * ───────────────────────────────────────────────────────────────────────── */
 
 /* Typography ---------------------------------------------------------- */
@@ -186,8 +197,6 @@ body {
   letter-spacing: -0.02em;
   color: var(--ink);
 }
-/* DM Serif italic for editorial accents inside display headlines:
-   <h1 class="t-display">AI systems for <em>operators</em>.</h1> */
 .t-display em,
 .t-display i {
   font-family: var(--serif);
@@ -220,13 +229,12 @@ body {
 .t-faint { color: var(--ink-40); }
 
 /* Buttons ------------------------------------------------------------- */
-/* Default ("secondary" in the new design) — paper with hairline border. */
 .btn {
   display: inline-flex; align-items: center; gap: 6px;
   height: var(--ctrl-h); padding: 0 12px;
   font-size: 13px; font-weight: 500;
   border-radius: var(--r-md);
-  background: var(--paper);
+  background: var(--paper-pure);
   border: 1px solid var(--ink-20);
   color: var(--ink);
   transition: background 120ms cubic-bezier(0.22, 1, 0.36, 1),
@@ -235,26 +243,25 @@ body {
   cursor: pointer;
 }
 .btn:hover {
-  background: var(--ink-04);
+  background: var(--paper-3);
   border-color: var(--ink-40);
   color: var(--ink);
 }
 .btn:active { opacity: 0.88; }
 
-/* Primary — the magenta moment. Used sparingly. */
 .btn-primary {
   background: var(--magenta);
-  color: var(--paper);
+  color: #FFFFFF;
   border-color: transparent;
-  box-shadow: none;
+  box-shadow: 0 0 0 1px rgba(255, 0, 102, 0.2),
+              0 8px 20px -8px rgba(255, 0, 102, 0.45);
 }
 .btn-primary:hover {
   background: var(--magenta-deep);
-  color: var(--paper);
+  color: #FFFFFF;
   border-color: transparent;
 }
 
-/* Ghost — invisible until hovered. For inline / icon-only actions. */
 .btn-ghost {
   background: transparent;
   border-color: transparent;
@@ -283,7 +290,7 @@ body {
               box-shadow 120ms cubic-bezier(0.22, 1, 0.36, 1);
 }
 .input:focus-within {
-  border-color: var(--ink-40);
+  border-color: var(--magenta);
   outline: none;
   box-shadow: 0 0 0 3px var(--magenta-wash);
 }
@@ -298,53 +305,49 @@ body {
   font-family: var(--code);
   font-size: 11px;
   padding: 2px 6px;
-  background: var(--paper);
+  background: var(--paper-3);
   border: 1px solid var(--ink-20);
   border-radius: var(--r-sm);
-  color: var(--ink-40);
+  color: var(--ink-60);
   letter-spacing: 0.02em;
 }
 
 /* Chips / pills ------------------------------------------------------- */
-/* Default chip — neutral surface for tags and minor labels. */
 .chip {
   display: inline-flex; align-items: center; gap: 6px;
   height: 22px; padding: 0 8px;
   font-size: 11.5px; font-weight: 500;
-  background: var(--ink-04);
+  background: var(--paper-3);
   border: 1px solid var(--ink-20);
   color: var(--ink-80);
-  border-radius: var(--r-pill, 999px);
+  border-radius: 999px;
 }
-/* Status chips — quiet washes, never blocks. The text carries the weight. */
 .chip.\--ok {
-  background: rgba(31, 122, 77, 0.10);
+  background: var(--success-wash);
   color: var(--success);
-  border-color: rgba(31, 122, 77, 0.25);
+  border-color: var(--success-edge);
 }
 .chip.\--warn {
-  background: rgba(178, 107, 0, 0.10);
+  background: var(--warning-wash);
   color: var(--warning);
-  border-color: rgba(178, 107, 0, 0.25);
+  border-color: var(--warning-edge);
 }
 .chip.\--danger {
-  background: rgba(199, 38, 60, 0.10);
+  background: var(--danger-wash);
   color: var(--danger);
-  border-color: rgba(199, 38, 60, 0.25);
+  border-color: var(--danger-edge);
 }
 .chip.\--info {
-  background: rgba(30, 95, 190, 0.10);
+  background: var(--info-wash);
   color: var(--info);
-  border-color: rgba(30, 95, 190, 0.25);
+  border-color: var(--info-edge);
 }
 .chip.\--mute  { color: var(--ink-60); }
-/* "Solid" used to be amber-on-navy; now it's the rare magenta moment. */
 .chip.\--solid {
   background: var(--magenta);
-  color: var(--paper);
+  color: #FFFFFF;
   border-color: transparent;
 }
-/* New: a soft magenta pill for tags ("Finance", "Production" style). */
 .chip.\--accent {
   background: var(--magenta-wash);
   color: var(--magenta-ink);
@@ -360,24 +363,27 @@ body {
 .dot.\--warn   { background: var(--warning); }
 .dot.\--danger { background: var(--danger); }
 .dot.\--info   { background: var(--info); }
-/* Legacy --amber dot now signals "accent / live" with magenta. */
 .dot.\--amber  { background: var(--magenta); }
 
 /* Avatars ------------------------------------------------------------- */
+/* On dark, the inverted-mark avatar is: paper-pure tile + ink text +
+   1px hairline (so it has shape on the slightly-lifted card surface). */
 .zk-avatar {
   display: inline-flex; align-items: center; justify-content: center;
   width: 22px; height: 22px; border-radius: 50%;
-  background: var(--ink);
-  color: var(--paper);
+  background: var(--paper-3);
+  color: var(--ink);
   font-size: 10.5px; font-weight: 700;
   letter-spacing: 0.02em;
   flex-shrink: 0;
+  border: 1px solid var(--ink-20);
 }
 .zk-avatar-lg { width: 36px; height: 36px; font-size: 13px; }
 .zk-avatar-xl { width: 56px; height: 56px; font-size: 18px; }
 
 /* Sidebar nav item ---------------------------------------------------- */
-/* New design treats the active item as ink-on-paper (inverted), not a tint. */
+/* "Inverted active" still works on dark: active item becomes a *bright*
+   tile (paper-white) with *dark* text. The pattern is mode-agnostic. */
 .nav-item {
   display: flex; align-items: center; gap: 10px;
   padding: 0 11px; height: 32px;
@@ -395,7 +401,7 @@ body {
 }
 .nav-item.\--active .ni-ico { color: var(--paper); }
 .nav-item .ni-ico { color: var(--ink-60); flex-shrink: 0; }
-.nav-item.\--active .ni-count { color: var(--paper); opacity: 0.7; }
+.nav-item.\--active .ni-count { color: var(--paper); opacity: 0.75; }
 .nav-item .ni-count {
   margin-left: auto;
   font-family: var(--code);
@@ -429,29 +435,24 @@ body {
   white-space: nowrap;
   background: var(--paper-pure);
 }
-.tbl tbody tr:hover td { background: var(--ink-04); }
+.tbl tbody tr:hover td { background: var(--paper-3); }
 .tbl tbody tr.\--sel td { background: var(--magenta-wash); }
 
 /* Cards --------------------------------------------------------------- */
-/* The system avoids drop shadows on cards. 1px border + paper-pure does
-   the elevation work. (Old code used .card classes inconsistently — this
-   .card recipe just documents the canonical look.) */
 .card {
   background: var(--paper-pure);
   border: 1px solid var(--ink-20);
   border-radius: var(--r-lg);
 }
 
-/* Screen wrapper — kept for backwards compat. The grain overlay made sense
-   on the old dark surface; on paper it's noise. We render the wrapper inert
-   so existing pages don't break, but no longer apply the overlay. */
+/* Screen wrapper — inert in v2 (the grain overlay was a holdover). */
 .screen {
   position: relative;
   background: var(--paper);
   color: var(--ink);
 }
 
-/* Scrollbar — quiet on paper */
+/* Scrollbar — subtle on dark */
 ::-webkit-scrollbar { width: 8px; height: 8px; }
 ::-webkit-scrollbar-thumb {
   background: var(--ink-20);

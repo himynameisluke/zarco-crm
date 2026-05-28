@@ -23,38 +23,48 @@ type Deal = {
   primaryContactLastName: string | null;
 };
 
-// Stage dots on kanban column headers. Earlier stages read as cool/neutral
-// ink, the active "act now" stage is the magenta accent, and the terminal
-// stages (won / lost) borrow the system's quiet success/danger.
+// Stage dots on kanban column headers. The dashboard's stacked "Pipeline by
+// stage" bar uses the same scheme — this is a tracker, so deal heat needs
+// to read at a glance. Progression is a temperature ramp inside the
+// system's allowed status palette:
+//   lead       — ink-40 (neutral, "just landed")
+//   qualified  — info blue (cool, formal — "we have signal")
+//   proposal   — warning amber (warm, "active, watching closely")
+//   negotiation— magenta accent (hot, "act now")
+//   won        — success green
+//   lost       — danger red
+// Mirrors STAGE_ACCENT in src/components/dashboard/dashboard.tsx — keep
+// the two in sync when you change either.
 const STAGE_ACCENT: Record<DealStage, string> = {
   lead: "var(--ink-40)",
   qualified: "var(--info)",
-  proposal: "var(--ink-60)",
+  proposal: "var(--warning)",
   negotiation: "var(--magenta)",
   won: "var(--success)",
   lost: "var(--danger)",
 };
 
-// Days-in-stage chip on each deal card. The colors are quiet washes — the
-// number does the work. ≥14d nudges danger-red, ≥7d uses warning amber.
+// Days-in-stage chip on each deal card. Quiet washes — the number does the
+// work. ≥14d nudges danger-red, ≥7d uses warning amber. The wash vars
+// flip cleanly with theme so chips read on both paper and ink surfaces.
 function daysChipStyle(days: number) {
   if (days >= 14) {
     return {
       color: "var(--danger)",
-      background: "rgba(199, 38, 60, 0.08)",
-      border: "1px solid rgba(199, 38, 60, 0.22)",
+      background: "var(--danger-wash)",
+      border: "1px solid var(--danger-edge)",
     };
   }
   if (days >= 7) {
     return {
       color: "var(--warning)",
-      background: "rgba(178, 107, 0, 0.08)",
-      border: "1px solid rgba(178, 107, 0, 0.22)",
+      background: "var(--warning-wash)",
+      border: "1px solid var(--warning-edge)",
     };
   }
   return {
     color: "var(--ink-60)",
-    background: "var(--ink-04)",
+    background: "var(--paper-3)",
     border: "1px solid var(--ink-20)",
   };
 }

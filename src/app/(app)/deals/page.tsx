@@ -140,7 +140,7 @@ export default async function DealsPage() {
                 fontSize: 9.5,
                 padding: "1px 5px",
                 borderRadius: 3,
-                background: "var(--ink-04)",
+                background: "var(--paper-3)",
                 color: "var(--ink-60)",
                 border: "1px solid var(--ink-20)",
               }}
@@ -153,9 +153,9 @@ export default async function DealsPage() {
                 fontSize: 9.5,
                 padding: "1px 5px",
                 borderRadius: 3,
-                background: "rgba(178, 107, 0, 0.08)",
+                background: "var(--warning-wash)",
                 color: "var(--warning)",
-                border: "1px solid rgba(178, 107, 0, 0.22)",
+                border: "1px solid var(--warning-edge)",
               }}
             >
               7–13d
@@ -166,9 +166,9 @@ export default async function DealsPage() {
                 fontSize: 9.5,
                 padding: "1px 5px",
                 borderRadius: 3,
-                background: "rgba(199, 38, 60, 0.08)",
+                background: "var(--danger-wash)",
                 color: "var(--danger)",
-                border: "1px solid rgba(199, 38, 60, 0.22)",
+                border: "1px solid var(--danger-edge)",
               }}
             >
               14d+

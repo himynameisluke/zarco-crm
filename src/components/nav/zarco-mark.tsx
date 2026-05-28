@@ -4,25 +4,31 @@ type ZarcoMarkProps = {
 };
 
 /**
- * The Zarco brand mark — heavy "Z" on a near-black ink tile with a single
- * magenta triangular corner notch (top-right). This is the **C — corner
- * notch** variant from the design handoff: modern, structural, low-noise.
- * The magenta earns attention by being the only color.
+ * The Zarco brand mark — heavy "Z" on a tile with a single magenta
+ * triangular corner notch (top-right). Variant **C** from the May 2026
+ * design handoff's mark exploration.
+ *
+ * The tile and the glyph use CSS vars (`--ink` and `--paper`) instead of
+ * hard-coded hex so the mark **auto-flips** with theme:
+ *   - Light mode (paper bg):  ink tile (dark) + paper Z (light) + magenta
+ *   - Dark mode (ink bg):     paper tile (light) + ink Z (dark) + magenta
+ * Either way the result is a high-contrast tile against the surface with
+ * the magenta corner notch as the only color.
  *
  * Geometry mirrors `preview/brand-mark.html` from the design bundle:
  *   - corner radius ≈ size × 0.15
  *   - notch leg     ≈ size × 0.30  (so the 96px tile gets a 28px notch)
- *   - glyph font-size ≈ size × 0.625
+ *   - glyph size    ≈ size × 0.625
  *
- * Server-renderable (no client hooks).
+ * Server-renderable.
  */
 export function ZarcoMark({ size = 28, className }: ZarcoMarkProps) {
   const radius = Math.max(4, Math.round(size * 0.15));
   const notch = Math.max(6, Math.round(size * 0.3));
   const fontSize = Math.round(size * 0.625);
 
-  // y-baseline = ~72% of tile height places the Z optically centred for
-  // Hanken Grotesk 800. (Pure 50% reads too high because the cap is solid.)
+  // 72% of tile height optically centres a heavy Hanken Grotesk cap. Pure
+  // 50% sits too high because the cap is solid all the way through.
   const yBaseline = Math.round(size * 0.72);
 
   return (
@@ -34,14 +40,22 @@ export function ZarcoMark({ size = 28, className }: ZarcoMarkProps) {
       className={className}
       style={{ flexShrink: 0, display: "block" }}
     >
-      {/* Ink tile */}
-      <rect width={size} height={size} rx={radius} fill="#0E0E0E" />
-      {/* Magenta corner notch (top-right, triangular) */}
+      {/* Tile uses --ink so it inverts with theme. In light mode --ink is
+          dark and the tile reads as the canonical near-black square. In
+          dark mode --ink is paper-white and the tile becomes a bright tile
+          on the dark surface — same visual idea, inverted. */}
+      <rect
+        width={size}
+        height={size}
+        rx={radius}
+        style={{ fill: "var(--ink)" }}
+      />
+      {/* Magenta corner notch is mode-agnostic. */}
       <polygon
         points={`${size},0 ${size},${notch} ${size - notch},0`}
         fill="#FF0066"
       />
-      {/* Heavy Z monogram in paper white */}
+      {/* Glyph uses --paper so it inverts with theme alongside the tile. */}
       <text
         x={size / 2}
         y={yBaseline}
@@ -50,7 +64,7 @@ export function ZarcoMark({ size = 28, className }: ZarcoMarkProps) {
         fontWeight={800}
         fontSize={fontSize}
         letterSpacing="-0.04em"
-        fill="#FAFAF7"
+        style={{ fill: "var(--paper)" }}
       >
         Z
       </text>

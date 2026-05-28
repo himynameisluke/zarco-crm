@@ -277,12 +277,12 @@ export default async function PublicQuotePage({
                 borderRadius: 8,
                 background:
                   quote.status === "accepted"
-                    ? "rgba(31, 122, 77, 0.10)"
-                    : "rgba(199, 38, 60, 0.10)",
+                    ? "var(--success-wash)"
+                    : "var(--danger-wash)",
                 border: `1px solid ${
                   quote.status === "accepted"
-                    ? "rgba(31, 122, 77, 0.30)"
-                    : "rgba(199, 38, 60, 0.30)"
+                    ? "var(--success-edge)"
+                    : "var(--danger-edge)"
                 }`,
                 color:
                   quote.status === "accepted"

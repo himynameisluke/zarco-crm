@@ -54,13 +54,24 @@ const STAGE_WEIGHTS: Record<DealStage, number> = {
   lost: 0,
 };
 
-// Pipeline progress dots on the dashboard mini-bar. Mirrors the kanban
-// color logic: neutral cool early, magenta on the "act now" stage, success
-// and danger for terminal states.
+// Pipeline progress dots on the dashboard mini-bar + the stacked
+// proportion bar above it. This is a *tracker* — at a glance you should
+// see how heat builds as deals move forward, which the all-neutral approach
+// killed (lead and proposal both reading gray, indistinguishable in the
+// stacked bar). The progression here is a temperature ramp inside the
+// system's allowed status palette:
+//   lead       — ink-40 (neutral, "just landed")
+//   qualified  — info blue (cool, formal — "we have signal")
+//   proposal   — warning amber (warm, "active, watching closely")
+//   negotiation— magenta accent (hot, "act now")
+//   won        — success green
+//   lost       — danger red
+// Mirrors STAGE_ACCENT in src/components/deals/kanban-board.tsx — keep
+// the two in sync when you change either.
 const STAGE_ACCENT: Record<DealStage, string> = {
   lead: "var(--ink-40)",
   qualified: "var(--info)",
-  proposal: "var(--ink-60)",
+  proposal: "var(--warning)",
   negotiation: "var(--magenta)",
   won: "var(--success)",
   lost: "var(--danger)",
@@ -917,7 +928,7 @@ export async function Dashboard({ userEmail }: { userEmail: string }) {
                             width: 14,
                             height: 14,
                             marginTop: 2,
-                            border: "1.5px solid rgba(199, 38, 60, 0.5)",
+                            border: "1.5px solid var(--danger)",
                             borderRadius: 3.5,
                             flexShrink: 0,
                           }}

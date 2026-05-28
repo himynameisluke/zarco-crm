@@ -33,7 +33,7 @@ export function TaskCheckbox({
         border: isDone
           ? "1.5px solid var(--magenta)"
           : overdue
-            ? "1.5px solid rgba(199, 38, 60, 0.5)"
+            ? "1.5px solid var(--danger)"
             : "1.5px solid var(--ink-40)",
         borderRadius: 3.5,
         background: isDone ? "var(--magenta)" : "transparent",

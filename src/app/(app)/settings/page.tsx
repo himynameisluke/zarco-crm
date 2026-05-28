@@ -53,22 +53,25 @@ const SECTIONS: SettingsCard[] = [
 // Status pills on the settings landing tiles. Map ready → quiet success
 // green; stub → quiet warning amber; post-MVP → neutral ink wash. None of
 // these is the brand accent — that stays reserved for primary actions.
+// Status pills on the settings landing tiles. Quiet washes from the
+// design tokens — same logic as chips/days-in-stage so dark mode reads
+// uniform. None of these is the brand accent; magenta stays reserved.
 const TONE_STYLES: Record<
   NonNullable<SettingsCard["status"]>["tone"],
   { bg: string; border: string; color: string }
 > = {
   ready: {
-    bg: "rgba(31, 122, 77, 0.10)",
-    border: "rgba(31, 122, 77, 0.25)",
+    bg: "var(--success-wash)",
+    border: "var(--success-edge)",
     color: "var(--success)",
   },
   stub: {
-    bg: "rgba(178, 107, 0, 0.10)",
-    border: "rgba(178, 107, 0, 0.25)",
+    bg: "var(--warning-wash)",
+    border: "var(--warning-edge)",
     color: "var(--warning)",
   },
   "post-mvp": {
-    bg: "var(--ink-04)",
+    bg: "var(--paper-3)",
     border: "var(--ink-20)",
     color: "var(--ink-60)",
   },
