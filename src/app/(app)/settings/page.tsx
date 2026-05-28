@@ -50,24 +50,30 @@ const SECTIONS: SettingsCard[] = [
   },
 ];
 
+// Status pills on the settings landing tiles. Map ready → quiet success
+// green; stub → quiet warning amber; post-MVP → neutral ink wash. None of
+// these is the brand accent — that stays reserved for primary actions.
+// Status pills on the settings landing tiles. Quiet washes from the
+// design tokens — same logic as chips/days-in-stage so dark mode reads
+// uniform. None of these is the brand accent; magenta stays reserved.
 const TONE_STYLES: Record<
   NonNullable<SettingsCard["status"]>["tone"],
   { bg: string; border: string; color: string }
 > = {
   ready: {
-    bg: "oklch(0.78 0.20 145 / 0.10)",
-    border: "oklch(0.78 0.20 145 / 0.25)",
-    color: "oklch(0.86 0.20 145)",
+    bg: "var(--success-wash)",
+    border: "var(--success-edge)",
+    color: "var(--success)",
   },
   stub: {
-    bg: "oklch(0.82 0.14 70 / 0.10)",
-    border: "oklch(0.82 0.14 70 / 0.25)",
-    color: "oklch(0.86 0.14 70)",
+    bg: "var(--warning-wash)",
+    border: "var(--warning-edge)",
+    color: "var(--warning)",
   },
   "post-mvp": {
-    bg: "var(--surface-3)",
-    border: "var(--hairline)",
-    color: "var(--ink-3)",
+    bg: "var(--paper-3)",
+    border: "var(--ink-20)",
+    color: "var(--ink-60)",
   },
 };
 
@@ -133,12 +139,12 @@ export default function SettingsLanding() {
                       style={{
                         width: 32,
                         height: 32,
-                        borderRadius: 7,
-                        background: "var(--surface-3)",
+                        borderRadius: 6,
+                        background: "var(--ink)",
                         display: "flex",
                         alignItems: "center",
                         justifyContent: "center",
-                        color: "var(--ink-2)",
+                        color: "var(--paper)",
                       }}
                     >
                       <Icon size={15} />

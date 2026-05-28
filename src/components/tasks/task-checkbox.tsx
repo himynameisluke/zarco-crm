@@ -31,16 +31,16 @@ export function TaskCheckbox({
         height: 14,
         marginTop: 3,
         border: isDone
-          ? "1.5px solid var(--amber)"
+          ? "1.5px solid var(--magenta)"
           : overdue
-            ? "1.5px solid oklch(0.70 0.20 25 / 0.5)"
-            : "1.5px solid var(--ink-4)",
+            ? "1.5px solid var(--danger)"
+            : "1.5px solid var(--ink-40)",
         borderRadius: 3.5,
-        background: isDone ? "var(--amber)" : "transparent",
+        background: isDone ? "var(--magenta)" : "transparent",
         display: "inline-flex",
         alignItems: "center",
         justifyContent: "center",
-        color: isDone ? "#0B1220" : "transparent",
+        color: isDone ? "var(--paper)" : "transparent",
         flexShrink: 0,
         cursor: "pointer",
         padding: 0,

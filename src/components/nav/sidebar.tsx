@@ -135,48 +135,52 @@ export function Sidebar({
         width: 232,
         flexShrink: 0,
         height: "100%",
-        background: "var(--panel-2)",
-        borderRight: "1px solid var(--hairline)",
+        background: "var(--paper)",
+        borderRight: "1px solid var(--ink-20)",
         display: "flex",
         flexDirection: "column",
       }}
     >
-      {/* Brand + workspace switcher */}
+      {/* Brand block — heavy "Zarco." wordmark with a single magenta period.
+          The period is the only ornament; per the brand guide it's the entire
+          decoration the wordmark is allowed. */}
       <div
         style={{
-          padding: "16px 14px 14px",
+          padding: "18px 14px 14px",
           display: "flex",
           alignItems: "center",
-          gap: 11,
+          gap: 10,
         }}
       >
         <ZarcoMark size={28} />
         <div
           style={{
             display: "flex",
-            flexDirection: "column",
-            lineHeight: 1.1,
+            alignItems: "baseline",
+            lineHeight: 1,
+            gap: 1,
           }}
         >
           <span
             style={{
               fontFamily: "var(--display)",
-              fontSize: 18,
-              fontWeight: 500,
-              letterSpacing: "-0.02em",
+              fontSize: 19,
+              fontWeight: 800,
+              letterSpacing: "-0.03em",
+              color: "var(--ink)",
             }}
           >
-            zarco
+            Zarco
           </span>
           <span
             style={{
-              fontFamily: "var(--code)",
-              fontSize: 9.5,
-              letterSpacing: "0.14em",
-              color: "var(--ink-4)",
+              fontFamily: "var(--display)",
+              fontSize: 19,
+              fontWeight: 800,
+              color: "var(--magenta)",
             }}
           >
-            ZRC · UK
+            .
           </span>
         </div>
         <button
@@ -185,7 +189,7 @@ export function Sidebar({
           style={{ marginLeft: "auto", padding: 4, borderRadius: 4 }}
           aria-label="Switch workspace"
         >
-          <ChevronsLeftRight size={13} color="var(--ink-4)" />
+          <ChevronsLeftRight size={13} color="var(--ink-40)" />
         </button>
       </div>
 
@@ -280,7 +284,7 @@ export function Sidebar({
       </nav>
 
       {/* Bottom: settings + workspace switcher + user card */}
-      <div style={{ borderTop: "1px solid var(--hairline)", padding: 8 }}>
+      <div style={{ borderTop: "1px solid var(--ink-20)", padding: 8 }}>
         <ul style={{ display: "flex", flexDirection: "column", gap: 1, listStyle: "none", margin: 0, padding: 0 }}>
           {SETTINGS_NAV.map((item) => (
             <NavItem key={item.href} item={item} active={isActive(item.href)} counts={counts} />
@@ -307,19 +311,13 @@ export function Sidebar({
             alignItems: "center",
             gap: 9,
             borderRadius: 6,
-            background: "var(--hover)",
+            background: "var(--paper-pure)",
+            border: "1px solid var(--ink-20)",
           }}
         >
-          <span
-            className="zk-avatar"
-            style={{
-              background: "oklch(0.78 0.20 145 / 0.20)",
-              borderColor: "oklch(0.78 0.20 145 / 0.35)",
-              color: "oklch(0.86 0.20 145)",
-            }}
-          >
-            {initials}
-          </span>
+          {/* Avatar: ink tile, paper monogram — matches the brand mark logic.
+              No tinted accent ring; the system avoids decorative color. */}
+          <span className="zk-avatar">{initials}</span>
           <div
             style={{
               display: "flex",
@@ -331,13 +329,13 @@ export function Sidebar({
           >
             <span
               className="truncate"
-              style={{ fontSize: 12.5, fontWeight: 500, color: "var(--ink)" }}
+              style={{ fontSize: 12.5, fontWeight: 600, color: "var(--ink)" }}
             >
               {displayName}
             </span>
             <span
               className="truncate"
-              style={{ fontSize: 11, color: "var(--ink-4)" }}
+              style={{ fontSize: 11, color: "var(--ink-40)" }}
             >
               {userEmail}
             </span>
@@ -354,7 +352,7 @@ export function Sidebar({
                 display: "inline-flex",
                 alignItems: "center",
                 justifyContent: "center",
-                color: "var(--ink-4)",
+                color: "var(--ink-60)",
                 background: "transparent",
                 border: 0,
                 cursor: "pointer",

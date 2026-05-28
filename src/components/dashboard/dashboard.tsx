@@ -54,13 +54,27 @@ const STAGE_WEIGHTS: Record<DealStage, number> = {
   lost: 0,
 };
 
+// Pipeline progress dots on the dashboard mini-bar + the stacked
+// proportion bar above it. This is a *tracker* — at a glance you should
+// see how heat builds as deals move forward, which the all-neutral approach
+// killed (lead and proposal both reading gray, indistinguishable in the
+// stacked bar). The progression here is a temperature ramp inside the
+// system's allowed status palette:
+//   lead       — ink-40 (neutral, "just landed")
+//   qualified  — info blue (cool, formal — "we have signal")
+//   proposal   — warning amber (warm, "active, watching closely")
+//   negotiation— magenta accent (hot, "act now")
+//   won        — success green
+//   lost       — danger red
+// Mirrors STAGE_ACCENT in src/components/deals/kanban-board.tsx — keep
+// the two in sync when you change either.
 const STAGE_ACCENT: Record<DealStage, string> = {
-  lead: "rgba(245,241,234,0.30)",
-  qualified: "oklch(0.78 0.10 220)",
-  proposal: "oklch(0.78 0.20 145)",
-  negotiation: "oklch(0.82 0.14 70)",
-  won: "oklch(0.78 0.18 145)",
-  lost: "oklch(0.70 0.20 25)",
+  lead: "var(--ink-40)",
+  qualified: "var(--info)",
+  proposal: "var(--warning)",
+  negotiation: "var(--magenta)",
+  won: "var(--success)",
+  lost: "var(--danger)",
 };
 
 function greeting(): string {
@@ -119,9 +133,7 @@ function KPI({
               gap: 3,
               fontFamily: "var(--code)",
               fontSize: 10.5,
-              color: isPositive
-                ? "oklch(0.85 0.18 145)"
-                : "oklch(0.80 0.20 25)",
+              color: isPositive ? "var(--success)" : "var(--danger)",
             }}
           >
             {isPositive ? (
@@ -301,19 +313,23 @@ function StageBar({
   );
 }
 
+// Activity icons in the dashboard timeline. The system avoids color-coding
+// by activity type — the icon glyph carries the meaning. The exception is
+// outcome activities (task done, quote accepted) where success-green earns
+// its presence, and MCP-sourced activity which gets the magenta accent.
 const ACTIVITY_CONFIG: Record<
   string,
   { icon: typeof Mail; color: string }
 > = {
-  email: { icon: Mail, color: "oklch(0.78 0.10 220)" },
-  call: { icon: Phone, color: "oklch(0.82 0.14 70)" },
-  meeting: { icon: Calendar, color: "oklch(0.78 0.20 145)" },
-  note: { icon: StickyNote, color: "var(--ink-3)" },
-  status_change: { icon: ChevronRight, color: "oklch(0.78 0.20 145)" },
-  quote_sent: { icon: FileText, color: "oklch(0.78 0.10 220)" },
-  quote_viewed: { icon: FileText, color: "oklch(0.78 0.10 220)" },
-  quote_accepted: { icon: FileText, color: "oklch(0.78 0.18 145)" },
-  task_completed: { icon: ChevronRight, color: "var(--ink-3)" },
+  email: { icon: Mail, color: "var(--ink-60)" },
+  call: { icon: Phone, color: "var(--ink-60)" },
+  meeting: { icon: Calendar, color: "var(--ink-60)" },
+  note: { icon: StickyNote, color: "var(--ink-60)" },
+  status_change: { icon: ChevronRight, color: "var(--ink-60)" },
+  quote_sent: { icon: FileText, color: "var(--ink-60)" },
+  quote_viewed: { icon: FileText, color: "var(--ink-60)" },
+  quote_accepted: { icon: FileText, color: "var(--success)" },
+  task_completed: { icon: ChevronRight, color: "var(--success)" },
 };
 
 function ActivityItem({
@@ -332,10 +348,10 @@ function ActivityItem({
 }) {
   const config = ACTIVITY_CONFIG[activity.type] ?? {
     icon: ChevronRight,
-    color: "var(--ink-3)",
+    color: "var(--ink-60)",
   };
   const Icon = activity.source === "mcp" ? Zap : config.icon;
-  const color = activity.source === "mcp" ? "var(--amber)" : config.color;
+  const color = activity.source === "mcp" ? "var(--magenta)" : config.color;
   return (
     <li
       style={{
@@ -631,7 +647,7 @@ export async function Dashboard({ userEmail }: { userEmail: string }) {
                 {openDealCount} open deal{openDealCount === 1 ? "" : "s"} in
                 pipeline · {recentActivities.length} recent activit
                 {recentActivities.length === 1 ? "y" : "ies"} ·{" "}
-                <span style={{ color: "oklch(0.86 0.20 145)" }}>
+                <span style={{ color: "var(--magenta)", fontWeight: 600 }}>
                   {overdue.length > 0
                     ? `${overdue.length} task${overdue.length === 1 ? "" : "s"} overdue.`
                     : "you're all caught up."}
@@ -644,17 +660,18 @@ export async function Dashboard({ userEmail }: { userEmail: string }) {
                   href="/settings/mcp"
                   className="chip"
                   style={{
-                    background: "oklch(0.78 0.20 145 / 0.10)",
-                    border: "1px solid oklch(0.78 0.20 145 / 0.25)",
-                    color: "oklch(0.86 0.20 145)",
+                    background: "var(--magenta-wash)",
+                    border: "1px solid transparent",
+                    color: "var(--magenta-ink)",
                     textDecoration: "none",
                     display: "inline-flex",
                     alignItems: "center",
                     gap: 6,
+                    fontWeight: 600,
                   }}
                   title={`${mcpClientCount} Claude client${mcpClientCount === 1 ? "" : "s"} connected — ${mcpRecentActivityCount} write${mcpRecentActivityCount === 1 ? "" : "s"} this week. Click to manage.`}
                 >
-                  <Zap size={11} color="var(--amber)" />
+                  <Zap size={11} color="var(--magenta)" />
                   Claude · {mcpRecentActivityCount} write
                   {mcpRecentActivityCount === 1 ? "" : "s"}
                 </Link>
@@ -891,7 +908,7 @@ export async function Dashboard({ userEmail }: { userEmail: string }) {
                     <li style={{ marginTop: 8, padding: "0 4px" }}>
                       <span
                         className="t-eyebrow"
-                        style={{ fontSize: 9.5, color: "oklch(0.80 0.20 25)" }}
+                        style={{ fontSize: 9.5, color: "var(--danger)" }}
                       >
                         Overdue · {overdue.length}
                       </span>
@@ -911,7 +928,7 @@ export async function Dashboard({ userEmail }: { userEmail: string }) {
                             width: 14,
                             height: 14,
                             marginTop: 2,
-                            border: "1.5px solid oklch(0.70 0.20 25 / 0.5)",
+                            border: "1.5px solid var(--danger)",
                             borderRadius: 3.5,
                             flexShrink: 0,
                           }}
@@ -937,7 +954,7 @@ export async function Dashboard({ userEmail }: { userEmail: string }) {
                               className="t-mono"
                               style={{
                                 fontSize: 10,
-                                color: "oklch(0.80 0.20 25)",
+                                color: "var(--danger)",
                               }}
                             >
                               overdue · {formatRelative(t.dueAt)}
@@ -958,9 +975,10 @@ export async function Dashboard({ userEmail }: { userEmail: string }) {
             <div
               className="card"
               style={{
-                background:
-                  "linear-gradient(180deg, oklch(0.78 0.20 145 / 0.05), transparent)",
-                borderColor: "oklch(0.78 0.20 145 / 0.20)",
+                // System forbids gradients on cards; the magenta wash carries
+                // the "this is the Claude/MCP CTA" cue on its own.
+                background: "var(--magenta-wash)",
+                borderColor: "transparent",
               }}
             >
               <header
@@ -974,7 +992,7 @@ export async function Dashboard({ userEmail }: { userEmail: string }) {
                 <div
                   style={{ display: "flex", alignItems: "center", gap: 8 }}
                 >
-                  <Zap size={13} color="var(--amber)" />
+                  <Zap size={13} color="var(--magenta)" />
                   <span
                     className="t-label"
                     style={{ fontSize: 12, color: "var(--ink)" }}
@@ -1049,7 +1067,7 @@ export async function Dashboard({ userEmail }: { userEmail: string }) {
                     >
                       <Sparkles
                         size={11}
-                        color="var(--amber)"
+                        color="var(--magenta)"
                         style={{ marginTop: 3, flexShrink: 0 }}
                       />
                       Tools available: find/get/search across the CRM, create +

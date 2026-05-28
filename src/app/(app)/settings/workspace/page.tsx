@@ -45,21 +45,23 @@ export default function WorkspaceSettingsPage() {
             Defaults that apply across your CRM.
           </p>
 
+          {/* Read-only notice: paper-pure card with a thin hairline. The
+              system avoids tinted info blocks — quietness > color-coding. */}
           <div
             style={{
               display: "flex",
               alignItems: "flex-start",
               gap: 8,
-              padding: "10px 12px",
+              padding: "12px 14px",
               borderRadius: 8,
-              background: "oklch(0.78 0.20 145 / 0.06)",
-              border: "1px solid oklch(0.78 0.20 145 / 0.18)",
+              background: "var(--paper-pure)",
+              border: "1px solid var(--ink-20)",
               marginBottom: 20,
             }}
           >
             <Info
               size={14}
-              color="oklch(0.86 0.20 145)"
+              color="var(--ink-60)"
               style={{ marginTop: 2, flexShrink: 0 }}
             />
             <p

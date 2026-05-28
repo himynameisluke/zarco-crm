@@ -69,14 +69,7 @@ export default async function TeamSettingsPage() {
                   padding: "12px 18px",
                 }}
               >
-                <span
-                  className="zk-avatar"
-                  style={{
-                    background: "oklch(0.78 0.20 145 / 0.20)",
-                    borderColor: "oklch(0.78 0.20 145 / 0.35)",
-                    color: "oklch(0.86 0.20 145)",
-                  }}
-                >
+                <span className="zk-avatar">
                   {email.slice(0, 2).toUpperCase()}
                 </span>
                 <div style={{ flex: 1, minWidth: 0 }}>

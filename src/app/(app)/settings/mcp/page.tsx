@@ -452,7 +452,7 @@ export default async function MCPSettingsPage() {
                   gap: 8,
                 }}
               >
-                <Zap size={14} color="var(--amber)" />
+                <Zap size={14} color="var(--magenta)" />
                 Recent MCP activity
               </h2>
               <span className="t-mono" style={{ fontSize: 11, color: "var(--ink-4)" }}>
@@ -486,7 +486,7 @@ export default async function MCPSettingsPage() {
                     >
                       <Zap
                         size={13}
-                        color="var(--amber)"
+                        color="var(--magenta)"
                         style={{ marginTop: 2, flexShrink: 0 }}
                       />
                       <div style={{ flex: 1, minWidth: 0 }}>
