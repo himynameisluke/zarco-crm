@@ -13,6 +13,7 @@ import { cn } from "@/lib/utils";
 import {
   DropdownMenu,
   DropdownMenuContent,
+  DropdownMenuGroup,
   DropdownMenuItem,
   DropdownMenuLabel,
   DropdownMenuSeparator,
@@ -116,45 +117,51 @@ export function WorkspaceSwitcher({
         sideOffset={6}
         className="w-60"
       >
-        <DropdownMenuLabel className="text-[11px] tracking-wide uppercase opacity-60">
-          Workspaces
-        </DropdownMenuLabel>
-        {workspaces.map((w) => {
-          const isCurrent = w.id === currentWorkspaceId;
-          return (
-            <DropdownMenuItem
-              key={w.id}
-              onClick={() => handleSwitch(w.id)}
-              className="flex items-center gap-2 cursor-pointer"
-              disabled={pending}
-            >
-              <Building2 size={12} className="opacity-70" />
-              <span className="flex-1 truncate text-sm">{w.name}</span>
-              {w.type === "demo" ? (
-                <span
-                  className="text-[9px] tracking-wide uppercase"
-                  style={{ color: "oklch(0.86 0.14 70)" }}
-                >
-                  Demo
-                </span>
-              ) : null}
-              {isCurrent ? <Check size={12} className="ml-1" /> : null}
-            </DropdownMenuItem>
-          );
-        })}
+        {/* base-ui requires DropdownMenuLabel (renders Menu.GroupLabel) to
+            live inside a Menu.Group — bare label throws error #31. */}
+        <DropdownMenuGroup>
+          <DropdownMenuLabel className="text-[11px] tracking-wide uppercase opacity-60">
+            Workspaces
+          </DropdownMenuLabel>
+          {workspaces.map((w) => {
+            const isCurrent = w.id === currentWorkspaceId;
+            return (
+              <DropdownMenuItem
+                key={w.id}
+                onClick={() => handleSwitch(w.id)}
+                className="flex items-center gap-2 cursor-pointer"
+                disabled={pending}
+              >
+                <Building2 size={12} className="opacity-70" />
+                <span className="flex-1 truncate text-sm">{w.name}</span>
+                {w.type === "demo" ? (
+                  <span
+                    className="text-[9px] tracking-wide uppercase"
+                    style={{ color: "oklch(0.86 0.14 70)" }}
+                  >
+                    Demo
+                  </span>
+                ) : null}
+                {isCurrent ? <Check size={12} className="ml-1" /> : null}
+              </DropdownMenuItem>
+            );
+          })}
+        </DropdownMenuGroup>
 
         {!hasDemo ? (
           <>
             <DropdownMenuSeparator />
-            <DropdownMenuItem
-              onClick={handleCreateDemo}
-              disabled={pending}
-              className="flex items-center gap-2 cursor-pointer"
-              style={{ color: "oklch(0.86 0.20 145)" }}
-            >
-              <Sparkles size={12} />
-              <span className="text-sm">Create demo workspace</span>
-            </DropdownMenuItem>
+            <DropdownMenuGroup>
+              <DropdownMenuItem
+                onClick={handleCreateDemo}
+                disabled={pending}
+                className="flex items-center gap-2 cursor-pointer"
+                style={{ color: "oklch(0.86 0.20 145)" }}
+              >
+                <Sparkles size={12} />
+                <span className="text-sm">Create demo workspace</span>
+              </DropdownMenuItem>
+            </DropdownMenuGroup>
             <div
               className="px-2 py-1 text-[10.5px]"
               style={{ color: "var(--ink-4)", lineHeight: 1.4 }}
