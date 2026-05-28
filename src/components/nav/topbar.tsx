@@ -1,7 +1,8 @@
-import { Bell, ChevronRight } from "lucide-react";
+import { Bell, ChevronRight, Sparkles } from "lucide-react";
 import type { ReactNode } from "react";
 
 import { createClient } from "@/lib/supabase/server";
+import { getCurrentWorkspace } from "@/lib/workspace/current";
 import { Sidebar } from "@/components/nav/sidebar";
 import { MobileSidebarTrigger } from "@/components/nav/mobile-sidebar";
 import { SparkleTrigger } from "@/components/nav/sparkle-trigger";
@@ -32,6 +33,8 @@ export async function Topbar({ crumbs = [], tabs, actions }: TopbarProps) {
     data: { user },
   } = await supabase.auth.getUser();
   const userEmail = user?.email ?? undefined;
+  const workspace = await getCurrentWorkspace();
+  const isDemo = workspace?.type === "demo";
 
   return (
     <header
@@ -124,6 +127,32 @@ export async function Topbar({ crumbs = [], tabs, actions }: TopbarProps) {
       ) : null}
 
       <div style={{ flex: 1 }} />
+
+      {/* DEMO pill — only when current workspace.type === 'demo'. Stops Luke
+          from confusing customer-facing demo data with the real CRM at a
+          glance. Sits in the topbar so it's visible on every page. */}
+      {isDemo ? (
+        <span
+          style={{
+            display: "inline-flex",
+            alignItems: "center",
+            gap: 5,
+            padding: "3px 9px",
+            borderRadius: 999,
+            background: "oklch(0.82 0.14 70 / 0.16)",
+            border: "1px solid oklch(0.82 0.14 70 / 0.32)",
+            color: "oklch(0.88 0.14 70)",
+            fontSize: 10.5,
+            fontFamily: "var(--code)",
+            letterSpacing: "0.08em",
+            textTransform: "uppercase",
+          }}
+          title="You're in the demo workspace — fake data only."
+        >
+          <Sparkles size={10} />
+          Demo workspace
+        </span>
+      ) : null}
 
       {actions}
       <button type="button" className="btn btn-ghost btn-icon" title="Notifications">

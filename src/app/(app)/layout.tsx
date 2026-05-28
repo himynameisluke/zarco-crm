@@ -5,6 +5,7 @@ import { db } from "@/lib/db";
 import { inboxItems, tasks } from "@/lib/db/schema";
 import { createClient } from "@/lib/supabase/server";
 import { getCurrentWorkspace } from "@/lib/workspace/current";
+import { listMyWorkspaces } from "@/lib/workspace/actions";
 import { Sidebar, type SidebarCounts } from "@/components/nav/sidebar";
 import { Toaster } from "@/components/ui/sonner";
 import { CommandPaletteLoader } from "@/components/command-palette/loader";
@@ -21,7 +22,10 @@ export default async function AppLayout({ children }: { children: React.ReactNod
 
   const userEmail = user.email ?? "unknown@zarco.uk";
 
-  const workspace = await getCurrentWorkspace();
+  const [workspace, myWorkspaces] = await Promise.all([
+    getCurrentWorkspace(),
+    listMyWorkspaces(),
+  ]);
 
   const [inboxCount, openTaskCount] = workspace
     ? await Promise.all([
@@ -67,7 +71,12 @@ export default async function AppLayout({ children }: { children: React.ReactNod
         className="hidden sm:block h-full"
         style={{ width: 232, flexShrink: 0 }}
       >
-        <Sidebar userEmail={userEmail} counts={counts} />
+        <Sidebar
+          userEmail={userEmail}
+          counts={counts}
+          workspaces={myWorkspaces}
+          currentWorkspaceId={workspace?.id ?? null}
+        />
       </div>
       <div className="flex flex-1 flex-col overflow-hidden">{children}</div>
       <CommandPaletteLoader />

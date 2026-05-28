@@ -24,6 +24,10 @@ import {
 import { cn } from "@/lib/utils";
 import { signOut } from "@/app/(auth)/actions";
 import { ZarcoMark } from "./zarco-mark";
+import {
+  WorkspaceSwitcher,
+  type WorkspaceSwitcherWorkspace,
+} from "./workspace-switcher";
 
 export type SidebarCounts = {
   inbox?: number;
@@ -98,6 +102,8 @@ function NavItem({
 type SidebarProps = {
   userEmail?: string;
   counts?: SidebarCounts;
+  workspaces?: WorkspaceSwitcherWorkspace[];
+  currentWorkspaceId?: string | null;
 };
 
 function getInitials(email: string) {
@@ -109,7 +115,12 @@ function getInitials(email: string) {
   return local.slice(0, 2).toUpperCase();
 }
 
-export function Sidebar({ userEmail = "guest@zarco.uk", counts = {} }: SidebarProps) {
+export function Sidebar({
+  userEmail = "guest@zarco.uk",
+  counts = {},
+  workspaces = [],
+  currentWorkspaceId = null,
+}: SidebarProps) {
   const pathname = usePathname();
 
   const isActive = (href: string) =>
@@ -268,13 +279,26 @@ export function Sidebar({ userEmail = "guest@zarco.uk", counts = {} }: SidebarPr
         </div>
       </nav>
 
-      {/* Bottom: settings + user card */}
+      {/* Bottom: settings + workspace switcher + user card */}
       <div style={{ borderTop: "1px solid var(--hairline)", padding: 8 }}>
         <ul style={{ display: "flex", flexDirection: "column", gap: 1, listStyle: "none", margin: 0, padding: 0 }}>
           {SETTINGS_NAV.map((item) => (
             <NavItem key={item.href} item={item} active={isActive(item.href)} counts={counts} />
           ))}
         </ul>
+
+        {/* Workspace switcher — only render if we have at least one workspace
+            (i.e. user is signed in + has been backfilled by phase-1 migration).
+            Hidden in the unsigned-in shell preview. */}
+        {workspaces.length > 0 ? (
+          <div style={{ marginTop: 8 }}>
+            <WorkspaceSwitcher
+              workspaces={workspaces}
+              currentWorkspaceId={currentWorkspaceId}
+            />
+          </div>
+        ) : null}
+
         <div
           style={{
             marginTop: 8,
