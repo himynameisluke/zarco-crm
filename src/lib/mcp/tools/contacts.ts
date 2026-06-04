@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { and, desc, eq, gte, ilike, or } from "drizzle-orm";
+import { and, desc, eq, gte, ilike, or, sql } from "drizzle-orm";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 
 import { db } from "@/lib/db";
@@ -28,13 +28,28 @@ export function registerContactTools(server: McpServer) {
         query: z
           .string()
           .min(1)
-          .describe("Substring match against first name, last name, or email"),
+          .describe("Matches first name, last name, full name, or email. Multi-word queries (e.g. 'George Hemingway') match across first + last name."),
       },
       annotations: { readOnlyHint: true, idempotentHint: true },
     },
     async ({ query }, { authInfo }) => {
       getMcpContext(authInfo);
-      const pattern = `%${query}%`;
+      // Match each whitespace-separated term against first name, last name, email,
+      // or the full "first last" name — so "George Hemingway" matches a contact
+      // whose first name is George and last name is Hemingway (single-field
+      // substring matching missed these). All terms must match (AND).
+      const fullName = sql`coalesce(${contacts.firstName}, '') || ' ' || coalesce(${contacts.lastName}, '')`;
+      const terms = query.trim().split(/\s+/).filter(Boolean);
+      const perTerm = terms.map((term) => {
+        const p = `%${term}%`;
+        return or(
+          ilike(contacts.firstName, p),
+          ilike(contacts.lastName, p),
+          ilike(contacts.email, p),
+          ilike(fullName, p),
+        );
+      });
+      const where = perTerm.length ? and(...perTerm) : ilike(fullName, `%${query}%`);
       const rows = await db
         .select({
           id: contacts.id,
@@ -46,13 +61,7 @@ export function registerContactTools(server: McpServer) {
         })
         .from(contacts)
         .leftJoin(organizations, eq(contacts.organizationId, organizations.id))
-        .where(
-          or(
-            ilike(contacts.firstName, pattern),
-            ilike(contacts.lastName, pattern),
-            ilike(contacts.email, pattern),
-          ),
-        )
+        .where(where)
         .orderBy(desc(contacts.updatedAt))
         .limit(20);
       return textResult({ count: rows.length, contacts: rows });
