@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionForm } from "@/lib/use-action-form";
 import Link from "next/link";
 import { Loader2 } from "lucide-react";
 
@@ -43,10 +43,10 @@ export function CampaignForm({
   submitLabel = "Save campaign",
   cancelHref,
 }: CampaignFormProps) {
-  const [state, formAction, pending] = useActionState(action, null);
+  const { state, pending, onSubmit } = useActionForm(action);
 
   return (
-    <form action={formAction} className="space-y-6">
+    <form onSubmit={onSubmit} className="space-y-6">
       <Card>
         <CardHeader>
           <CardTitle>Details</CardTitle>

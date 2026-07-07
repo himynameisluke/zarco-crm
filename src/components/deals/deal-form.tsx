@@ -1,6 +1,8 @@
 "use client";
 
-import { useActionState, useState } from "react";
+import { useState } from "react";
+
+import { useActionForm } from "@/lib/use-action-form";
 import Link from "next/link";
 import { Loader2 } from "lucide-react";
 
@@ -68,13 +70,13 @@ export function DealForm({
   submitLabel = "Save deal",
   cancelHref,
 }: DealFormProps) {
-  const [state, formAction, pending] = useActionState(action, null);
+  const { state, pending, onSubmit } = useActionForm(action);
   // Controlled so the Lost reason field can appear the moment the stage
   // flips to 'lost' — capturing WHY at the same moment as the change.
   const [stage, setStage] = useState<DealStage>(defaultValues?.stage ?? "lead");
 
   return (
-    <form action={formAction} className="space-y-6">
+    <form onSubmit={onSubmit} className="space-y-6">
       <Card>
         <CardHeader>
           <CardTitle>Details</CardTitle>
