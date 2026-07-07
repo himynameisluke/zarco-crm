@@ -43,6 +43,13 @@
       "when": 1783453938217,
       "tag": "0005_wet_plazm",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1783455683744,
+      "tag": "0006_pretty_scarecrow",
+      "breakpoints": true
     }
   ]
 }

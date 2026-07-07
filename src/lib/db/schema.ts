@@ -13,6 +13,7 @@ import {
   boolean,
   index,
   primaryKey,
+  uniqueIndex,
 } from "drizzle-orm/pg-core";
 
 const authSchema = pgSchema("auth");
@@ -408,7 +409,9 @@ export const quotes = pgTable(
     workspaceId: uuid("workspace_id")
       .notNull()
       .references(() => workspaces.id, { onDelete: "restrict" }),
-    quoteNumber: text("quote_number").notNull().unique(),
+    // Unique PER WORKSPACE (see the composite index below), not globally —
+    // every workspace runs its own Q-NNNN sequence off workspaces.quote_counter.
+    quoteNumber: text("quote_number").notNull(),
     // Quotes MUST be tied to both a deal and an organization. This stops
     // floating quotes that can't be reconciled back to the pipeline. We use
     // onDelete: restrict — if a deal/org has quotes, you have to deal with
@@ -440,6 +443,7 @@ export const quotes = pgTable(
     index("quotes_deal_idx").on(t.dealId),
     index("quotes_org_idx").on(t.organizationId),
     index("quotes_status_idx").on(t.status),
+    uniqueIndex("quotes_workspace_number_uq").on(t.workspaceId, t.quoteNumber),
   ],
 );
 

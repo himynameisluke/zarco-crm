@@ -2,6 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { Trash2 } from "lucide-react";
+import { toast } from "sonner";
 
 import { cn } from "@/lib/utils";
 import { Button, buttonVariants } from "@/components/ui/button";
@@ -51,7 +52,11 @@ export function DeleteDealButton({
             disabled={pending}
             onClick={() => {
               startTransition(async () => {
-                await deleteDeal(dealId);
+                const result = await deleteDeal(dealId);
+                if (result?.error) {
+                  toast.error(result.error);
+                  setOpen(false);
+                }
               });
             }}
           >

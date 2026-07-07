@@ -68,44 +68,48 @@ export async function processInboxItem(_: unknown, formData: FormData) {
     return { error: "Record not found in this workspace" };
   }
 
-  const [activity] = await db
-    .insert(activities)
-    .values({
-      workspaceId: workspace.id,
-      type: parsed.data.activityType,
-      // Granola/MCP-sourced items keep their original source; manual triage from
-      // outlook/resend collapses to email_sync/system in the activity record.
-      source:
-        item.source === "granola"
-          ? "granola"
-          : item.source === "mcp"
-            ? "mcp"
-            : item.source === "outlook"
-              ? "email_sync"
-              : "system",
-      subjectType: parsed.data.subjectType,
-      subjectId: parsed.data.subjectId,
-      subject: item.title,
-      body: item.body,
-      metadata: item.metadata as Record<string, unknown>,
-      occurredAt: item.receivedAt,
-      createdBy: user.id,
-    })
-    .returning();
+  // One transaction — if the status update failed after the activity insert,
+  // the item stayed 'pending' and a retry would duplicate the activity.
+  await db.transaction(async (tx) => {
+    const [activity] = await tx
+      .insert(activities)
+      .values({
+        workspaceId: workspace.id,
+        type: parsed.data.activityType,
+        // Granola/MCP-sourced items keep their original source; manual triage from
+        // outlook/resend collapses to email_sync/system in the activity record.
+        source:
+          item.source === "granola"
+            ? "granola"
+            : item.source === "mcp"
+              ? "mcp"
+              : item.source === "outlook"
+                ? "email_sync"
+                : "system",
+        subjectType: parsed.data.subjectType,
+        subjectId: parsed.data.subjectId,
+        subject: item.title,
+        body: item.body,
+        metadata: item.metadata as Record<string, unknown>,
+        occurredAt: item.receivedAt,
+        createdBy: user.id,
+      })
+      .returning();
 
-  await db
-    .update(inboxItems)
-    .set({
-      status: "processed",
-      processedAt: new Date(),
-      processedIntoActivityId: activity.id,
-    })
-    .where(
-      and(
-        eq(inboxItems.id, parsed.data.itemId),
-        eq(inboxItems.workspaceId, workspace.id),
-      ),
-    );
+    await tx
+      .update(inboxItems)
+      .set({
+        status: "processed",
+        processedAt: new Date(),
+        processedIntoActivityId: activity.id,
+      })
+      .where(
+        and(
+          eq(inboxItems.id, parsed.data.itemId),
+          eq(inboxItems.workspaceId, workspace.id),
+        ),
+      );
+  });
 
   revalidatePath("/inbox");
   revalidatePath("/activity");

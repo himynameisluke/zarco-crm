@@ -2,7 +2,7 @@
 
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
-import { and, eq, sql } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { z } from "zod";
 
 import { db } from "@/lib/db";
@@ -10,6 +10,7 @@ import { activities, quoteLineItems, quotes } from "@/lib/db/schema";
 import { requireUser } from "@/lib/auth";
 import { requireCurrentWorkspace } from "@/lib/workspace/current";
 import { entityInWorkspace } from "@/lib/mcp/scope";
+import { nextQuoteNumber } from "@/lib/quotes/number";
 import { lineItemSchema, quoteFormSchema } from "./schema";
 
 function nullable(value: string | undefined | null): string | null {
@@ -20,15 +21,6 @@ function nullable(value: string | undefined | null): string | null {
 
 function poundsToPence(n: number): number {
   return Math.round(n * 100);
-}
-
-async function nextQuoteNumber(workspaceId: string): Promise<string> {
-  const [row] = await db
-    .select({ n: sql<number>`count(*)::int` })
-    .from(quotes)
-    .where(eq(quotes.workspaceId, workspaceId));
-  const count = row?.n ?? 0;
-  return `Q-${String(count + 1).padStart(4, "0")}`;
 }
 
 function totalsFromLineItems(lineItems: z.infer<typeof lineItemSchema>[], taxRate: number) {
@@ -105,42 +97,48 @@ export async function createQuote(_: unknown, formData: FormData) {
     parsed.data.taxRate,
   );
 
-  const quoteNumber = await nextQuoteNumber(workspace.id);
+  // One transaction: number allocation + quote + line items commit or roll
+  // back together — no more quotes stranded without line items.
+  const inserted = await db.transaction(async (tx) => {
+    const quoteNumber = await nextQuoteNumber(workspace.id, tx);
 
-  const [inserted] = await db
-    .insert(quotes)
-    .values({
-      workspaceId: workspace.id,
-      quoteNumber,
-      // dealId + organizationId are required (DB NOT NULL + zod uuid).
-      // contactId stays optional.
-      dealId: parsed.data.dealId,
-      organizationId: parsed.data.organizationId,
-      contactId: nullable(parsed.data.contactId),
-      status: "draft",
-      subtotalPence,
-      taxRate: parsed.data.taxRate.toString(),
-      totalPence,
-      currency: parsed.data.currency,
-      validUntil: nullable(parsed.data.validUntil),
-      notes: nullable(parsed.data.notes),
-      createdBy: user.id,
-    })
-    .returning({ id: quotes.id });
-
-  if (parsed.data.lineItems.length > 0) {
-    await db.insert(quoteLineItems).values(
-      parsed.data.lineItems.map((li, i) => ({
+    const [quote] = await tx
+      .insert(quotes)
+      .values({
         workspaceId: workspace.id,
-        quoteId: inserted.id,
-        description: li.description,
-        quantity: li.quantity.toString(),
-        unitPricePence: poundsToPence(li.unitPricePounds),
-        totalPence: Math.round(li.quantity * li.unitPricePounds * 100),
-        sortOrder: i,
-      })),
-    );
-  }
+        quoteNumber,
+        // dealId + organizationId are required (DB NOT NULL + zod uuid).
+        // contactId stays optional.
+        dealId: parsed.data.dealId,
+        organizationId: parsed.data.organizationId,
+        contactId: nullable(parsed.data.contactId),
+        status: "draft",
+        subtotalPence,
+        taxRate: parsed.data.taxRate.toString(),
+        totalPence,
+        currency: parsed.data.currency,
+        validUntil: nullable(parsed.data.validUntil),
+        notes: nullable(parsed.data.notes),
+        createdBy: user.id,
+      })
+      .returning({ id: quotes.id });
+
+    if (parsed.data.lineItems.length > 0) {
+      await tx.insert(quoteLineItems).values(
+        parsed.data.lineItems.map((li, i) => ({
+          workspaceId: workspace.id,
+          quoteId: quote.id,
+          description: li.description,
+          quantity: li.quantity.toString(),
+          unitPricePence: poundsToPence(li.unitPricePounds),
+          totalPence: Math.round(li.quantity * li.unitPricePounds * 100),
+          sortOrder: i,
+        })),
+      );
+    }
+
+    return quote;
+  });
 
   revalidatePath("/quotes");
   redirect(`/quotes/${inserted.id}`);
@@ -154,6 +152,24 @@ export async function updateQuote(id: string, _: unknown, formData: FormData) {
     return { error: parsed.error.issues[0]?.message ?? "Invalid input" };
   }
 
+  // Draft-only, mirroring campaigns: once a quote has been sent the
+  // recipient may have seen (or accepted!) the numbers, so silently
+  // re-pricing it would make the public page lie. Create a new quote
+  // instead.
+  const [existing] = await db
+    .select({ status: quotes.status })
+    .from(quotes)
+    .where(and(eq(quotes.id, id), eq(quotes.workspaceId, workspace.id)))
+    .limit(1);
+  if (!existing) {
+    return { error: "Quote not found" };
+  }
+  if (existing.status !== "draft") {
+    return {
+      error: `This quote is ${existing.status} — sent quotes can't be edited. Create a new quote instead.`,
+    };
+  }
+
   const refError = await validateQuoteRefs(workspace.id, parsed.data);
   if (refError) return { error: refError };
 
@@ -162,46 +178,48 @@ export async function updateQuote(id: string, _: unknown, formData: FormData) {
     parsed.data.taxRate,
   );
 
-  await db
-    .update(quotes)
-    .set({
-      dealId: parsed.data.dealId,
-      organizationId: parsed.data.organizationId,
-      contactId: nullable(parsed.data.contactId),
-      subtotalPence,
-      taxRate: parsed.data.taxRate.toString(),
-      totalPence,
-      currency: parsed.data.currency,
-      validUntil: nullable(parsed.data.validUntil),
-      notes: nullable(parsed.data.notes),
-      updatedAt: new Date(),
-    })
-    .where(
-      and(eq(quotes.id, id), eq(quotes.workspaceId, workspace.id)),
-    );
+  // One transaction — a failure between "delete items" and "insert items"
+  // used to leave a quote with new totals and zero line items.
+  await db.transaction(async (tx) => {
+    await tx
+      .update(quotes)
+      .set({
+        dealId: parsed.data.dealId,
+        organizationId: parsed.data.organizationId,
+        contactId: nullable(parsed.data.contactId),
+        subtotalPence,
+        taxRate: parsed.data.taxRate.toString(),
+        totalPence,
+        currency: parsed.data.currency,
+        validUntil: nullable(parsed.data.validUntil),
+        notes: nullable(parsed.data.notes),
+        updatedAt: new Date(),
+      })
+      .where(and(eq(quotes.id, id), eq(quotes.workspaceId, workspace.id)));
 
-  // Replace line items wholesale.
-  await db
-    .delete(quoteLineItems)
-    .where(
-      and(
-        eq(quoteLineItems.quoteId, id),
-        eq(quoteLineItems.workspaceId, workspace.id),
-      ),
-    );
-  if (parsed.data.lineItems.length > 0) {
-    await db.insert(quoteLineItems).values(
-      parsed.data.lineItems.map((li, i) => ({
-        workspaceId: workspace.id,
-        quoteId: id,
-        description: li.description,
-        quantity: li.quantity.toString(),
-        unitPricePence: poundsToPence(li.unitPricePounds),
-        totalPence: Math.round(li.quantity * li.unitPricePounds * 100),
-        sortOrder: i,
-      })),
-    );
-  }
+    // Replace line items wholesale.
+    await tx
+      .delete(quoteLineItems)
+      .where(
+        and(
+          eq(quoteLineItems.quoteId, id),
+          eq(quoteLineItems.workspaceId, workspace.id),
+        ),
+      );
+    if (parsed.data.lineItems.length > 0) {
+      await tx.insert(quoteLineItems).values(
+        parsed.data.lineItems.map((li, i) => ({
+          workspaceId: workspace.id,
+          quoteId: id,
+          description: li.description,
+          quantity: li.quantity.toString(),
+          unitPricePence: poundsToPence(li.unitPricePounds),
+          totalPence: Math.round(li.quantity * li.unitPricePounds * 100),
+          sortOrder: i,
+        })),
+      );
+    }
+  });
 
   revalidatePath("/quotes");
   revalidatePath(`/quotes/${id}`);

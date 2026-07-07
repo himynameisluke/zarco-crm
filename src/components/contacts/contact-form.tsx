@@ -9,6 +9,13 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
   Card,
   CardContent,
   CardHeader,
@@ -24,8 +31,10 @@ type ContactFormProps = {
     phone?: string | null;
     title?: string | null;
     linkedinUrl?: string | null;
+    organizationId?: string | null;
     notes?: string | null;
   };
+  organizationOptions: { id: string; name: string }[];
   submitLabel?: string;
   cancelHref: string;
 };
@@ -33,6 +42,7 @@ type ContactFormProps = {
 export function ContactForm({
   action,
   defaultValues,
+  organizationOptions,
   submitLabel = "Save contact",
   cancelHref,
 }: ContactFormProps) {
@@ -93,6 +103,30 @@ export function ContactForm({
               defaultValue={defaultValues?.title ?? ""}
               disabled={pending}
             />
+          </div>
+          <div className="grid gap-2 sm:col-span-2">
+            <Label htmlFor="organizationId">Organization</Label>
+            <Select
+              name="organizationId"
+              defaultValue={defaultValues?.organizationId ?? ""}
+            >
+              <SelectTrigger id="organizationId" disabled={pending}>
+                <SelectValue placeholder="None" />
+              </SelectTrigger>
+              <SelectContent>
+                {organizationOptions.length === 0 ? (
+                  <div className="px-2 py-1.5 text-sm text-muted-foreground">
+                    No organizations yet
+                  </div>
+                ) : (
+                  organizationOptions.map((o) => (
+                    <SelectItem key={o.id} value={o.id}>
+                      {o.name}
+                    </SelectItem>
+                  ))
+                )}
+              </SelectContent>
+            </Select>
           </div>
           <div className="grid gap-2 sm:col-span-2">
             <Label htmlFor="linkedinUrl">LinkedIn URL</Label>

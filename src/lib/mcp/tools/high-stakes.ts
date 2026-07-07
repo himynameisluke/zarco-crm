@@ -1,9 +1,9 @@
 import { z } from "zod";
-import { and, eq } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 
 import { db } from "@/lib/db";
-import { contacts, deals, organizations, quotes } from "@/lib/db/schema";
+import { activities, contacts, deals, organizations, quotes, tasks } from "@/lib/db/schema";
 import { auditMcpWrite } from "../audit";
 import { requireMcpWorkspace, textResult } from "../context";
 import { entityInWorkspace } from "../scope";
@@ -33,7 +33,7 @@ export function registerHighStakesTools(server: McpServer) {
   server.registerTool(
     "delete_contact",
     {
-      description: `Permanently delete a contact. ${CONFIRM_REQUIRED_NOTE} Related activities remain in the database but become orphan rows (their subject FK is nulled).`,
+      description: `Permanently delete a contact. ${CONFIRM_REQUIRED_NOTE} Related activities and tasks on the contact are deleted with it.`,
       inputSchema: {
         id: z.string().uuid(),
         confirm: z
@@ -62,9 +62,31 @@ export function registerHighStakesTools(server: McpServer) {
       }
       const name =
         [target.firstName, target.lastName].filter(Boolean).join(" ") || "contact";
-      await db
-        .delete(contacts)
-        .where(and(eq(contacts.id, id), eq(contacts.workspaceId, workspaceId)));
+      // Activities/tasks reference subjects polymorphically (no FK) — clean
+      // them up with the row or they orphan forever.
+      await db.transaction(async (tx) => {
+        await tx
+          .delete(activities)
+          .where(
+            and(
+              eq(activities.workspaceId, workspaceId),
+              eq(activities.subjectType, "contact"),
+              eq(activities.subjectId, id),
+            ),
+          );
+        await tx
+          .delete(tasks)
+          .where(
+            and(
+              eq(tasks.workspaceId, workspaceId),
+              eq(tasks.subjectType, "contact"),
+              eq(tasks.subjectId, id),
+            ),
+          );
+        await tx
+          .delete(contacts)
+          .where(and(eq(contacts.id, id), eq(contacts.workspaceId, workspaceId)));
+      });
       // Audit is skipped for a bare delete: the entity no longer exists to
       // attach a timeline row to. A deletes feed can surface these later.
       return textResult({ deleted: { id, name }, by: userId });
@@ -74,7 +96,7 @@ export function registerHighStakesTools(server: McpServer) {
   server.registerTool(
     "delete_organization",
     {
-      description: `Permanently delete an organization. ${CONFIRM_REQUIRED_NOTE} Linked contacts and deals stay (their organizationId is nulled).`,
+      description: `Permanently delete an organization. ${CONFIRM_REQUIRED_NOTE} Linked contacts and deals stay (their organizationId is nulled); the org's own activities/tasks are deleted with it. Refuses if the org still has quotes.`,
       inputSchema: {
         id: z.string().uuid(),
         confirm: z.boolean(),
@@ -99,11 +121,45 @@ export function registerHighStakesTools(server: McpServer) {
       if (!target) {
         return textResult({ error: "not_found", id });
       }
-      await db
-        .delete(organizations)
+      // quotes.organizationId is NOT NULL + restrict — surface the block
+      // instead of letting the FK violation bubble as a raw error.
+      const [{ n: orgQuoteCount }] = await db
+        .select({ n: sql<number>`count(*)::int` })
+        .from(quotes)
         .where(
-          and(eq(organizations.id, id), eq(organizations.workspaceId, workspaceId)),
+          and(eq(quotes.organizationId, id), eq(quotes.workspaceId, workspaceId)),
         );
+      if (orgQuoteCount > 0) {
+        return textResult({
+          error: "has_quotes",
+          message: `Organization has ${orgQuoteCount} quote(s) — delete or re-assign them first`,
+        });
+      }
+      await db.transaction(async (tx) => {
+        await tx
+          .delete(activities)
+          .where(
+            and(
+              eq(activities.workspaceId, workspaceId),
+              eq(activities.subjectType, "organization"),
+              eq(activities.subjectId, id),
+            ),
+          );
+        await tx
+          .delete(tasks)
+          .where(
+            and(
+              eq(tasks.workspaceId, workspaceId),
+              eq(tasks.subjectType, "organization"),
+              eq(tasks.subjectId, id),
+            ),
+          );
+        await tx
+          .delete(organizations)
+          .where(
+            and(eq(organizations.id, id), eq(organizations.workspaceId, workspaceId)),
+          );
+      });
       return textResult({ deleted: { id, name: target.name }, by: userId });
     },
   );
@@ -111,7 +167,7 @@ export function registerHighStakesTools(server: McpServer) {
   server.registerTool(
     "delete_deal",
     {
-      description: `Permanently delete a deal. ${CONFIRM_REQUIRED_NOTE} Linked activities, quotes, and projects survive (their dealId is nulled).`,
+      description: `Permanently delete a deal. ${CONFIRM_REQUIRED_NOTE} The deal's activities/tasks are deleted with it; projects survive (dealId nulled). Refuses if the deal still has quotes.`,
       inputSchema: {
         id: z.string().uuid(),
         confirm: z.boolean(),
@@ -134,9 +190,39 @@ export function registerHighStakesTools(server: McpServer) {
       if (!target) {
         return textResult({ error: "not_found", id });
       }
-      await db
-        .delete(deals)
-        .where(and(eq(deals.id, id), eq(deals.workspaceId, workspaceId)));
+      const [{ n: dealQuoteCount }] = await db
+        .select({ n: sql<number>`count(*)::int` })
+        .from(quotes)
+        .where(and(eq(quotes.dealId, id), eq(quotes.workspaceId, workspaceId)));
+      if (dealQuoteCount > 0) {
+        return textResult({
+          error: "has_quotes",
+          message: `Deal has ${dealQuoteCount} quote(s) — delete them first`,
+        });
+      }
+      await db.transaction(async (tx) => {
+        await tx
+          .delete(activities)
+          .where(
+            and(
+              eq(activities.workspaceId, workspaceId),
+              eq(activities.subjectType, "deal"),
+              eq(activities.subjectId, id),
+            ),
+          );
+        await tx
+          .delete(tasks)
+          .where(
+            and(
+              eq(tasks.workspaceId, workspaceId),
+              eq(tasks.subjectType, "deal"),
+              eq(tasks.subjectId, id),
+            ),
+          );
+        await tx
+          .delete(deals)
+          .where(and(eq(deals.id, id), eq(deals.workspaceId, workspaceId)));
+      });
       return textResult({ deleted: { id, name: target.name }, by: userId });
     },
   );

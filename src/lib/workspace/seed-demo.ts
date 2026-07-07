@@ -1,7 +1,7 @@
 import "server-only";
-import { sql } from "drizzle-orm";
 
 import { db } from "@/lib/db";
+import { nextQuoteNumber } from "@/lib/quotes/number";
 import {
   activities,
   contacts,
@@ -364,19 +364,11 @@ export async function seedDemoWorkspace({
     )
     .returning({ id: deals.id });
 
-  // Quotes
-  // Compute the next quote number based on the current global max — quote_number
-  // is globally unique across workspaces, not per-workspace.
-  const [{ maxNum }] = await db
-    .select({
-      maxNum: sql<number>`coalesce(max(substring(quote_number from 3)::int), 0)`,
-    })
-    .from(quotes);
-  let nextN = (maxNum ?? 0) + 1;
-
+  // Quotes — numbers come from the workspace's atomic counter (quote_number
+  // is unique per workspace now, so the fresh demo workspace starts at Q-0001).
   const quoteRows: Array<{ id: string; quoteNumber: string }> = [];
   for (const q of QUOTE_DATA) {
-    const quoteNumber = `Q-${String(nextN++).padStart(4, "0")}`;
+    const quoteNumber = await nextQuoteNumber(workspaceId);
     const deal = DEAL_DATA[q.dealIndex];
     const subtotal = q.lineItems.reduce(
       (s, li) => s + li.quantity * li.unitPricePence,

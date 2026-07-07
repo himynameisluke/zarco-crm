@@ -2,6 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { Send } from "lucide-react";
+import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -58,7 +59,8 @@ export function SendCampaignButton({
             disabled={pending || disabled}
             onClick={() => {
               startTransition(async () => {
-                await sendCampaignStub(campaignId);
+                const result = await sendCampaignStub(campaignId);
+                if (result?.error) toast.error(result.error);
                 setOpen(false);
               });
             }}

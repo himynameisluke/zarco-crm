@@ -2,10 +2,10 @@
 
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
-import { and, eq } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 
 import { db } from "@/lib/db";
-import { organizations } from "@/lib/db/schema";
+import { activities, organizations, quotes, tasks } from "@/lib/db/schema";
 import { requireUser } from "@/lib/auth";
 import { requireCurrentWorkspace } from "@/lib/workspace/current";
 import { organizationFormSchema } from "./schema";
@@ -106,14 +106,52 @@ export async function updateOrganization(
 export async function deleteOrganization(id: string) {
   await requireUser();
   const workspace = await requireCurrentWorkspace();
-  await db
-    .delete(organizations)
+
+  // quotes.organizationId is NOT NULL + onDelete:restrict — deleting an org
+  // with quotes used to 500 on the FK. Surface it as a user-facing error.
+  const [{ n: quoteCount }] = await db
+    .select({ n: sql<number>`count(*)::int` })
+    .from(quotes)
     .where(
-      and(
-        eq(organizations.id, id),
-        eq(organizations.workspaceId, workspace.id),
-      ),
+      and(eq(quotes.organizationId, id), eq(quotes.workspaceId, workspace.id)),
     );
+  if (quoteCount > 0) {
+    return {
+      error: `This organization has ${quoteCount} quote${quoteCount === 1 ? "" : "s"} — delete or re-assign them first`,
+    };
+  }
+
+  // Activities/tasks reference subjects polymorphically (no FK), so clean
+  // them up here or they orphan forever.
+  await db.transaction(async (tx) => {
+    await tx
+      .delete(activities)
+      .where(
+        and(
+          eq(activities.workspaceId, workspace.id),
+          eq(activities.subjectType, "organization"),
+          eq(activities.subjectId, id),
+        ),
+      );
+    await tx
+      .delete(tasks)
+      .where(
+        and(
+          eq(tasks.workspaceId, workspace.id),
+          eq(tasks.subjectType, "organization"),
+          eq(tasks.subjectId, id),
+        ),
+      );
+    await tx
+      .delete(organizations)
+      .where(
+        and(
+          eq(organizations.id, id),
+          eq(organizations.workspaceId, workspace.id),
+        ),
+      );
+  });
+
   revalidatePath("/organizations");
   redirect("/organizations");
 }

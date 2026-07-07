@@ -13,6 +13,7 @@ import {
 import { auditMcpWrite } from "../audit";
 import { requireMcpWorkspace, textResult } from "../context";
 import { entityInWorkspace } from "../scope";
+import { nextQuoteNumber } from "@/lib/quotes/number";
 
 const STATUS_VALUES = [
   "draft",
@@ -28,15 +29,6 @@ const lineItemSchema = z.object({
   quantity: z.number().min(0).default(1),
   unitPricePence: z.number().int().min(0).max(1_000_000_000_00),
 });
-
-async function nextQuoteNumber(workspaceId: string): Promise<string> {
-  const [row] = await db
-    .select({ n: sql<number>`count(*)::int` })
-    .from(quotes)
-    .where(eq(quotes.workspaceId, workspaceId));
-  const count = row?.n ?? 0;
-  return `Q-${String(count + 1).padStart(4, "0")}`;
-}
 
 function computeTotals(
   items: z.infer<typeof lineItemSchema>[],
@@ -102,42 +94,48 @@ export function registerQuoteTools(server: McpServer) {
         input.lineItems,
         input.taxRate,
       );
-      const quoteNumber = await nextQuoteNumber(workspaceId);
+      // One transaction: atomic number allocation + quote + line items
+      // commit or roll back together.
+      const { inserted, lineRows } = await db.transaction(async (tx) => {
+        const quoteNumber = await nextQuoteNumber(workspaceId, tx);
 
-      const [inserted] = await db
-        .insert(quotes)
-        .values({
-          workspaceId,
-          quoteNumber,
-          dealId: input.dealId,
-          organizationId: input.organizationId,
-          contactId: input.contactId ?? null,
-          status: "draft",
-          subtotalPence,
-          taxRate: String(input.taxRate),
-          totalPence,
-          currency: input.currency,
-          validUntil: input.validUntil ?? null,
-          notes: input.notes ?? null,
-          createdBy: userId,
-        })
-        .returning();
-
-      // Insert line items in batch with sort order matching the input array.
-      const lineRows = await db
-        .insert(quoteLineItems)
-        .values(
-          input.lineItems.map((li, i) => ({
+        const [quote] = await tx
+          .insert(quotes)
+          .values({
             workspaceId,
-            quoteId: inserted.id,
-            description: li.description,
-            quantity: String(li.quantity),
-            unitPricePence: li.unitPricePence,
-            totalPence: Math.round(li.quantity * li.unitPricePence),
-            sortOrder: i,
-          })),
-        )
-        .returning();
+            quoteNumber,
+            dealId: input.dealId,
+            organizationId: input.organizationId,
+            contactId: input.contactId ?? null,
+            status: "draft",
+            subtotalPence,
+            taxRate: String(input.taxRate),
+            totalPence,
+            currency: input.currency,
+            validUntil: input.validUntil ?? null,
+            notes: input.notes ?? null,
+            createdBy: userId,
+          })
+          .returning();
+
+        // Insert line items in batch with sort order matching the input array.
+        const items = await tx
+          .insert(quoteLineItems)
+          .values(
+            input.lineItems.map((li, i) => ({
+              workspaceId,
+              quoteId: quote.id,
+              description: li.description,
+              quantity: String(li.quantity),
+              unitPricePence: li.unitPricePence,
+              totalPence: Math.round(li.quantity * li.unitPricePence),
+              sortOrder: i,
+            })),
+          )
+          .returning();
+
+        return { inserted: quote, lineRows: items };
+      });
 
       // Attribute on the deal timeline. dealId is always set now (required).
       await auditMcpWrite({

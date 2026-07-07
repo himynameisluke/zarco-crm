@@ -13,6 +13,7 @@ export const contactFormSchema = z.object({
     .max(500)
     .optional()
     .or(z.literal("")),
+  organizationId: z.string().uuid().optional().or(z.literal("")),
   notes: z.string().trim().max(5000).optional().or(z.literal("")),
 });
 

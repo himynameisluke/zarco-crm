@@ -1,9 +1,9 @@
 import { notFound } from "next/navigation";
-import { and, eq } from "drizzle-orm";
+import { and, desc, eq } from "drizzle-orm";
 import { Users } from "lucide-react";
 
 import { db } from "@/lib/db";
-import { contacts } from "@/lib/db/schema";
+import { contacts, organizations } from "@/lib/db/schema";
 import { requireUser } from "@/lib/auth";
 import { requireCurrentWorkspace } from "@/lib/workspace/current";
 import { Topbar } from "@/components/nav/topbar";
@@ -19,11 +19,19 @@ export default async function EditContactPage({
   const workspace = await requireCurrentWorkspace();
   const { id } = await params;
 
-  const [contact] = await db
-    .select()
-    .from(contacts)
-    .where(and(eq(contacts.id, id), eq(contacts.workspaceId, workspace.id)))
-    .limit(1);
+  const [[contact], orgOptions] = await Promise.all([
+    db
+      .select()
+      .from(contacts)
+      .where(and(eq(contacts.id, id), eq(contacts.workspaceId, workspace.id)))
+      .limit(1),
+    db
+      .select({ id: organizations.id, name: organizations.name })
+      .from(organizations)
+      .where(eq(organizations.workspaceId, workspace.id))
+      .orderBy(desc(organizations.updatedAt))
+      .limit(200),
+  ]);
 
   if (!contact) {
     notFound();
@@ -45,6 +53,7 @@ export default async function EditContactPage({
           <ContactForm
             action={updateContact.bind(null, id)}
             defaultValues={contact}
+            organizationOptions={orgOptions}
             submitLabel="Save changes"
             cancelHref={`/contacts/${id}`}
           />

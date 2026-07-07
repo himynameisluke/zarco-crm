@@ -5,7 +5,7 @@ import { revalidatePath } from "next/cache";
 import { and, eq } from "drizzle-orm";
 
 import { db } from "@/lib/db";
-import { projects } from "@/lib/db/schema";
+import { activities, projects, tasks } from "@/lib/db/schema";
 import { requireUser } from "@/lib/auth";
 import { requireCurrentWorkspace } from "@/lib/workspace/current";
 import { entityInWorkspace } from "@/lib/mcp/scope";
@@ -97,11 +97,34 @@ export async function updateProject(id: string, _: unknown, formData: FormData) 
 export async function deleteProject(id: string) {
   await requireUser();
   const workspace = await requireCurrentWorkspace();
-  await db
-    .delete(projects)
-    .where(
-      and(eq(projects.id, id), eq(projects.workspaceId, workspace.id)),
-    );
+
+  // Clean up polymorphic children (no FK) so they don't orphan.
+  await db.transaction(async (tx) => {
+    await tx
+      .delete(activities)
+      .where(
+        and(
+          eq(activities.workspaceId, workspace.id),
+          eq(activities.subjectType, "project"),
+          eq(activities.subjectId, id),
+        ),
+      );
+    await tx
+      .delete(tasks)
+      .where(
+        and(
+          eq(tasks.workspaceId, workspace.id),
+          eq(tasks.subjectType, "project"),
+          eq(tasks.subjectId, id),
+        ),
+      );
+    await tx
+      .delete(projects)
+      .where(
+        and(eq(projects.id, id), eq(projects.workspaceId, workspace.id)),
+      );
+  });
+
   revalidatePath("/projects");
   redirect("/projects");
 }

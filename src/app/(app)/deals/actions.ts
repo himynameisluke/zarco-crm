@@ -2,10 +2,10 @@
 
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
-import { and, eq } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 
 import { db } from "@/lib/db";
-import { deals } from "@/lib/db/schema";
+import { activities, deals, quotes, tasks } from "@/lib/db/schema";
 import { requireUser } from "@/lib/auth";
 import { requireCurrentWorkspace } from "@/lib/workspace/current";
 import { isWorkspaceMember } from "@/lib/workspace/members";
@@ -196,9 +196,44 @@ export async function updateDeal(id: string, _: unknown, formData: FormData) {
 export async function deleteDeal(id: string) {
   await requireUser();
   const workspace = await requireCurrentWorkspace();
-  await db
-    .delete(deals)
-    .where(and(eq(deals.id, id), eq(deals.workspaceId, workspace.id)));
+
+  // quotes.dealId is NOT NULL + onDelete:restrict — surface the block as a
+  // user-facing error instead of an FK 500.
+  const [{ n: quoteCount }] = await db
+    .select({ n: sql<number>`count(*)::int` })
+    .from(quotes)
+    .where(and(eq(quotes.dealId, id), eq(quotes.workspaceId, workspace.id)));
+  if (quoteCount > 0) {
+    return {
+      error: `This deal has ${quoteCount} quote${quoteCount === 1 ? "" : "s"} — delete them first`,
+    };
+  }
+
+  // Clean up polymorphic children (no FK) so they don't orphan.
+  await db.transaction(async (tx) => {
+    await tx
+      .delete(activities)
+      .where(
+        and(
+          eq(activities.workspaceId, workspace.id),
+          eq(activities.subjectType, "deal"),
+          eq(activities.subjectId, id),
+        ),
+      );
+    await tx
+      .delete(tasks)
+      .where(
+        and(
+          eq(tasks.workspaceId, workspace.id),
+          eq(tasks.subjectType, "deal"),
+          eq(tasks.subjectId, id),
+        ),
+      );
+    await tx
+      .delete(deals)
+      .where(and(eq(deals.id, id), eq(deals.workspaceId, workspace.id)));
+  });
+
   revalidatePath("/deals");
   redirect("/deals");
 }

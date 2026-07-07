@@ -5,6 +5,7 @@ import { db } from "@/lib/db";
 import { inboxItems, tasks } from "@/lib/db/schema";
 import { createClient } from "@/lib/supabase/server";
 import { getCurrentWorkspace } from "@/lib/workspace/current";
+import { bootstrapWorkspaceForUser } from "@/lib/workspace/bootstrap";
 import { listMyWorkspaces } from "@/lib/workspace/actions";
 import { Sidebar, type SidebarCounts } from "@/components/nav/sidebar";
 import { Toaster } from "@/components/ui/sonner";
@@ -22,10 +23,15 @@ export default async function AppLayout({ children }: { children: React.ReactNod
 
   const userEmail = user.email ?? "unknown@zarco.uk";
 
-  const [workspace, myWorkspaces] = await Promise.all([
-    getCurrentWorkspace(),
-    listMyWorkspaces(),
-  ]);
+  let workspace = await getCurrentWorkspace();
+  if (!workspace) {
+    // First request from a brand-new account: sign-up doesn't provision a
+    // workspace, so create one now instead of erroring on every page.
+    await bootstrapWorkspaceForUser(user.id, user.email ?? null);
+    workspace = await getCurrentWorkspace();
+  }
+
+  const myWorkspaces = await listMyWorkspaces();
 
   const [inboxCount, openTaskCount] = workspace
     ? await Promise.all([
