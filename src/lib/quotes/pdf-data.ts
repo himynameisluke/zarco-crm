@@ -1,5 +1,5 @@
 import "server-only";
-import { eq } from "drizzle-orm";
+import { and, eq, ne } from "drizzle-orm";
 
 import { db } from "@/lib/db";
 import {
@@ -16,17 +16,22 @@ import type { QuotePdfProps } from "@/components/quotes/quote-pdf";
  * Loads everything the QuotePdf component needs in one round-trip.
  * Used by both the internal /quotes/[id]/pdf route and the public
  * /q/[token]/pdf route — they only differ in the WHERE clause used to find
- * the quote (id vs publicToken).
+ * the quote.
+ *
+ * Access rules are enforced HERE so no caller can forget them (the DB
+ * connection bypasses RLS, so this is the only boundary):
+ *   - id lookups require the caller's workspaceId — an id alone must never
+ *     cross tenants.
+ *   - publicToken lookups exclude drafts, matching the /q/[token] viewer.
+ *     An unsent quote is not public even to someone holding the token.
  *
  * Returns null when the quote doesn't exist OR can't satisfy the PDF (deal
  * or organization missing — which shouldn't happen now that those FKs are
  * NOT NULL, but we defensive-check anyway).
  */
-export async function loadQuotePdfData(args: {
-  id?: string;
-  publicToken?: string;
-}): Promise<QuotePdfProps | null> {
-  if (!args.id && !args.publicToken) return null;
+export async function loadQuotePdfData(
+  args: { id: string; workspaceId: string } | { publicToken: string },
+): Promise<QuotePdfProps | null> {
 
   const [row] = await db
     .select({
@@ -56,9 +61,12 @@ export async function loadQuotePdfData(args: {
     .innerJoin(organizations, eq(quotes.organizationId, organizations.id))
     .leftJoin(contacts, eq(quotes.contactId, contacts.id))
     .where(
-      args.id
-        ? eq(quotes.id, args.id)
-        : eq(quotes.publicToken, args.publicToken!),
+      "id" in args
+        ? and(eq(quotes.id, args.id), eq(quotes.workspaceId, args.workspaceId))
+        : and(
+            eq(quotes.publicToken, args.publicToken),
+            ne(quotes.status, "draft"),
+          ),
     )
     .limit(1);
 

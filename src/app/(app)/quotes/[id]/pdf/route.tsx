@@ -3,7 +3,7 @@ import { renderToBuffer } from "@react-pdf/renderer";
 
 import { QuotePdf } from "@/components/quotes/quote-pdf";
 import { loadQuotePdfData } from "@/lib/quotes/pdf-data";
-import { createClient } from "@/lib/supabase/server";
+import { getCurrentWorkspace } from "@/lib/workspace/current";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -12,7 +12,8 @@ export const dynamic = "force-dynamic";
  * Internal PDF route for the team. Requires an authenticated session — the
  * (app) layout's auth check doesn't apply to route handlers, so we re-check
  * here. Same renderer as the public /q/[token]/pdf route, just keyed by id
- * instead of token.
+ * instead of token. The lookup is workspace-scoped: an id alone must never
+ * fetch another tenant's quote.
  *
  * `?inline=1` for in-tab viewing; default downloads.
  */
@@ -20,16 +21,13 @@ export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> },
 ) {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) {
+  const workspace = await getCurrentWorkspace();
+  if (!workspace) {
     return new NextResponse("Unauthorized", { status: 401 });
   }
 
   const { id } = await params;
-  const data = await loadQuotePdfData({ id });
+  const data = await loadQuotePdfData({ id, workspaceId: workspace.id });
   if (!data) {
     return new NextResponse("Quote not found", { status: 404 });
   }

@@ -8,6 +8,7 @@ import { db } from "@/lib/db";
 import { projects } from "@/lib/db/schema";
 import { requireUser } from "@/lib/auth";
 import { requireCurrentWorkspace } from "@/lib/workspace/current";
+import { entityInWorkspace } from "@/lib/mcp/scope";
 import { projectFormSchema } from "./schema";
 
 function nullable(value: string | undefined | null): string | null {
@@ -35,13 +36,20 @@ export async function createProject(_: unknown, formData: FormData) {
     return { error: parsed.error.issues[0]?.message ?? "Invalid input" };
   }
 
+  // Deal reference must live in the caller's workspace — RLS is bypassed,
+  // so this check is the tenant boundary.
+  const dealId = nullable(parsed.data.dealId);
+  if (dealId && !(await entityInWorkspace("deal", dealId, workspace.id))) {
+    return { error: "Deal not found in this workspace" };
+  }
+
   const [inserted] = await db
     .insert(projects)
     .values({
       workspaceId: workspace.id,
       name: parsed.data.name,
       status: parsed.data.status,
-      dealId: nullable(parsed.data.dealId),
+      dealId,
       startDate: nullable(parsed.data.startDate),
       endDate: nullable(parsed.data.endDate),
       notes: nullable(parsed.data.notes),
@@ -61,12 +69,17 @@ export async function updateProject(id: string, _: unknown, formData: FormData) 
     return { error: parsed.error.issues[0]?.message ?? "Invalid input" };
   }
 
+  const dealId = nullable(parsed.data.dealId);
+  if (dealId && !(await entityInWorkspace("deal", dealId, workspace.id))) {
+    return { error: "Deal not found in this workspace" };
+  }
+
   await db
     .update(projects)
     .set({
       name: parsed.data.name,
       status: parsed.data.status,
-      dealId: nullable(parsed.data.dealId),
+      dealId,
       startDate: nullable(parsed.data.startDate),
       endDate: nullable(parsed.data.endDate),
       notes: nullable(parsed.data.notes),

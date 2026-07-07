@@ -7,6 +7,7 @@ import { db } from "@/lib/db";
 import { activities } from "@/lib/db/schema";
 import { requireUser } from "@/lib/auth";
 import { requireCurrentWorkspace } from "@/lib/workspace/current";
+import { entityInWorkspace } from "@/lib/mcp/scope";
 
 const SUBJECT_TYPES = ["contact", "organization", "deal", "project"] as const;
 const LOGGABLE_TYPES = ["note", "call", "meeting", "email"] as const;
@@ -32,6 +33,18 @@ export async function logManualActivity(_: unknown, formData: FormData) {
 
   if (!parsed.success) {
     return { error: parsed.error.issues[0]?.message ?? "Invalid input" };
+  }
+
+  // The subject must belong to this workspace — activities.subjectId has no
+  // FK, and RLS is bypassed, so an unchecked id would let a forged request
+  // pin an activity onto another tenant's record.
+  const subjectOk = await entityInWorkspace(
+    parsed.data.subjectType,
+    parsed.data.subjectId,
+    workspace.id,
+  );
+  if (!subjectOk) {
+    return { error: "Record not found in this workspace" };
   }
 
   await db.insert(activities).values({

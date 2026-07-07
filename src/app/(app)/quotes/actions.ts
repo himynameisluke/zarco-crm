@@ -9,6 +9,7 @@ import { db } from "@/lib/db";
 import { quoteLineItems, quotes } from "@/lib/db/schema";
 import { requireUser } from "@/lib/auth";
 import { requireCurrentWorkspace } from "@/lib/workspace/current";
+import { entityInWorkspace } from "@/lib/mcp/scope";
 import { lineItemSchema, quoteFormSchema } from "./schema";
 
 function nullable(value: string | undefined | null): string | null {
@@ -63,6 +64,31 @@ function parseFormData(formData: FormData) {
   });
 }
 
+/**
+ * Validates that every entity a quote references belongs to the caller's
+ * workspace. RLS is bypassed at the connection level, so unchecked ids from
+ * form data could tie a quote to another tenant's deal/org/contact and leak
+ * their data through joins (quote page, PDF, public viewer).
+ */
+async function validateQuoteRefs(
+  workspaceId: string,
+  data: { dealId: string; organizationId: string; contactId?: string | null },
+): Promise<string | null> {
+  if (!(await entityInWorkspace("deal", data.dealId, workspaceId))) {
+    return "Deal not found in this workspace";
+  }
+  if (
+    !(await entityInWorkspace("organization", data.organizationId, workspaceId))
+  ) {
+    return "Organization not found in this workspace";
+  }
+  const contactId = nullable(data.contactId);
+  if (contactId && !(await entityInWorkspace("contact", contactId, workspaceId))) {
+    return "Contact not found in this workspace";
+  }
+  return null;
+}
+
 export async function createQuote(_: unknown, formData: FormData) {
   const user = await requireUser();
   const workspace = await requireCurrentWorkspace();
@@ -70,6 +96,9 @@ export async function createQuote(_: unknown, formData: FormData) {
   if (!parsed.success) {
     return { error: parsed.error.issues[0]?.message ?? "Invalid input" };
   }
+
+  const refError = await validateQuoteRefs(workspace.id, parsed.data);
+  if (refError) return { error: refError };
 
   const { subtotalPence, totalPence } = totalsFromLineItems(
     parsed.data.lineItems,
@@ -124,6 +153,9 @@ export async function updateQuote(id: string, _: unknown, formData: FormData) {
   if (!parsed.success) {
     return { error: parsed.error.issues[0]?.message ?? "Invalid input" };
   }
+
+  const refError = await validateQuoteRefs(workspace.id, parsed.data);
+  if (refError) return { error: refError };
 
   const { subtotalPence, totalPence } = totalsFromLineItems(
     parsed.data.lineItems,

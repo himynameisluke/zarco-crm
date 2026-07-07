@@ -7,6 +7,7 @@ import { db } from "@/lib/db";
 import { contacts, deals, organizations } from "@/lib/db/schema";
 import { createClient } from "@/lib/supabase/server";
 import { requireCurrentWorkspace } from "@/lib/workspace/current";
+import { entityInWorkspace } from "@/lib/mcp/scope";
 
 // =============================================================================
 // Quick-create server actions for the quote form combobox
@@ -83,6 +84,20 @@ export async function quickCreateContact(
 
   const userId = await requireUserId();
   const workspace = await requireCurrentWorkspace();
+
+  // The org reference must belong to this workspace — RLS is bypassed, so
+  // this check is the tenant boundary.
+  if (
+    parsed.data.organizationId &&
+    !(await entityInWorkspace(
+      "organization",
+      parsed.data.organizationId,
+      workspace.id,
+    ))
+  ) {
+    throw new Error("Organization not found in this workspace");
+  }
+
   const { first, last } = splitName(parsed.data.name);
 
   const [row] = await db
@@ -125,6 +140,18 @@ export async function quickCreateDeal(
 
   const userId = await requireUserId();
   const workspace = await requireCurrentWorkspace();
+
+  if (
+    parsed.data.organizationId &&
+    !(await entityInWorkspace(
+      "organization",
+      parsed.data.organizationId,
+      workspace.id,
+    ))
+  ) {
+    throw new Error("Organization not found in this workspace");
+  }
+
   const [row] = await db
     .insert(deals)
     .values({

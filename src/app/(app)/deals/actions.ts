@@ -8,6 +8,7 @@ import { db } from "@/lib/db";
 import { deals } from "@/lib/db/schema";
 import { requireUser } from "@/lib/auth";
 import { requireCurrentWorkspace } from "@/lib/workspace/current";
+import { entityInWorkspace } from "@/lib/mcp/scope";
 import { DEAL_STAGES, dealFormSchema, type DealStage } from "./schema";
 
 function nullableUuid(value: FormDataEntryValue | null): string | null {
@@ -43,6 +44,32 @@ function parseFormData(formData: FormData) {
   });
 }
 
+/**
+ * Validates that the org / contact a deal references belong to the caller's
+ * workspace. The ids come straight from form data, and RLS is bypassed at the
+ * connection level — without this, a forged request could link a deal to
+ * another tenant's records and leak their names through joins.
+ */
+async function validateDealRefs(
+  workspaceId: string,
+  organizationId: string | null,
+  primaryContactId: string | null,
+): Promise<string | null> {
+  if (
+    organizationId &&
+    !(await entityInWorkspace("organization", organizationId, workspaceId))
+  ) {
+    return "Organization not found in this workspace";
+  }
+  if (
+    primaryContactId &&
+    !(await entityInWorkspace("contact", primaryContactId, workspaceId))
+  ) {
+    return "Contact not found in this workspace";
+  }
+  return null;
+}
+
 export async function createDeal(_: unknown, formData: FormData) {
   const user = await requireUser();
   const workspace = await requireCurrentWorkspace();
@@ -51,6 +78,15 @@ export async function createDeal(_: unknown, formData: FormData) {
   if (!parsed.success) {
     return { error: parsed.error.issues[0]?.message ?? "Invalid input" };
   }
+
+  const organizationId = nullableUuid(formData.get("organizationId"));
+  const primaryContactId = nullableUuid(formData.get("primaryContactId"));
+  const refError = await validateDealRefs(
+    workspace.id,
+    organizationId,
+    primaryContactId,
+  );
+  if (refError) return { error: refError };
 
   const [inserted] = await db
     .insert(deals)
@@ -61,8 +97,8 @@ export async function createDeal(_: unknown, formData: FormData) {
       stage: parsed.data.stage,
       valuePence: poundsToPence(formData.get("valuePounds")),
       closeDate: nullableDate(formData.get("closeDate")),
-      organizationId: nullableUuid(formData.get("organizationId")),
-      primaryContactId: nullableUuid(formData.get("primaryContactId")),
+      organizationId,
+      primaryContactId,
       ownerId: user.id,
     })
     .returning({ id: deals.id });
@@ -80,6 +116,15 @@ export async function updateDeal(id: string, _: unknown, formData: FormData) {
     return { error: parsed.error.issues[0]?.message ?? "Invalid input" };
   }
 
+  const organizationId = nullableUuid(formData.get("organizationId"));
+  const primaryContactId = nullableUuid(formData.get("primaryContactId"));
+  const refError = await validateDealRefs(
+    workspace.id,
+    organizationId,
+    primaryContactId,
+  );
+  if (refError) return { error: refError };
+
   await db
     .update(deals)
     .set({
@@ -88,8 +133,8 @@ export async function updateDeal(id: string, _: unknown, formData: FormData) {
       stage: parsed.data.stage,
       valuePence: poundsToPence(formData.get("valuePounds")),
       closeDate: nullableDate(formData.get("closeDate")),
-      organizationId: nullableUuid(formData.get("organizationId")),
-      primaryContactId: nullableUuid(formData.get("primaryContactId")),
+      organizationId,
+      primaryContactId,
       updatedAt: new Date(),
     })
     .where(and(eq(deals.id, id), eq(deals.workspaceId, workspace.id)));

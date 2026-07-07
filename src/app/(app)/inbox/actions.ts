@@ -8,6 +8,7 @@ import { db } from "@/lib/db";
 import { activities, inboxItems } from "@/lib/db/schema";
 import { requireUser } from "@/lib/auth";
 import { requireCurrentWorkspace } from "@/lib/workspace/current";
+import { entityInWorkspace } from "@/lib/mcp/scope";
 
 const SUBJECT_TYPES = ["contact", "organization", "deal", "project"] as const;
 const ACTIVITY_TYPES = [
@@ -53,6 +54,18 @@ export async function processInboxItem(_: unknown, formData: FormData) {
   }
   if (item.status !== "pending") {
     return { error: "Inbox item already triaged" };
+  }
+
+  // The triage target must belong to this workspace — subjectId is
+  // user-supplied and activities have no FK on it, so without this check a
+  // forged request could file an activity against another tenant's record.
+  const subjectOk = await entityInWorkspace(
+    parsed.data.subjectType,
+    parsed.data.subjectId,
+    workspace.id,
+  );
+  if (!subjectOk) {
+    return { error: "Record not found in this workspace" };
   }
 
   const [activity] = await db

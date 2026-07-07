@@ -22,24 +22,30 @@ async function getBaseUrl(): Promise<string> {
 }
 
 export default async function MCPSettingsPage() {
-  await requireUser();
+  const user = await requireUser();
   const workspace = await requireCurrentWorkspace();
   const baseUrl = await getBaseUrl();
   const mcpUrl = `${baseUrl}/mcp`;
 
-  // Token counts per client (live + revoked + expired)
+  // Only clients the CURRENT USER has authorized (i.e. that hold at least one
+  // of their tokens, live or revoked). Registration is anonymous DCR, so a
+  // client isn't "yours" until you've completed OAuth against it — and other
+  // users' clients are none of your business. tokenCount = live tokens only.
   const clientRows = await db
     .select({
       id: oauthClients.id,
       clientName: oauthClients.clientName,
       redirectUris: oauthClients.redirectUris,
       registeredAt: oauthClients.registeredAt,
-      tokenCount: sql<number>`count(${oauthAccessTokens.tokenHash})::int`,
+      tokenCount: sql<number>`count(*) filter (where ${oauthAccessTokens.revokedAt} is null and ${oauthAccessTokens.expiresAt} > now())::int`,
     })
     .from(oauthClients)
-    .leftJoin(
+    .innerJoin(
       oauthAccessTokens,
-      eq(oauthAccessTokens.clientId, oauthClients.id),
+      and(
+        eq(oauthAccessTokens.clientId, oauthClients.id),
+        eq(oauthAccessTokens.userId, user.id),
+      ),
     )
     .groupBy(oauthClients.id)
     .orderBy(desc(oauthClients.registeredAt))
@@ -333,8 +339,9 @@ export default async function MCPSettingsPage() {
               </span>
             </div>
             <p style={{ fontSize: 13, color: "var(--ink-3)", margin: "0 0 12px" }}>
-              Clients that have completed dynamic client registration against
-              the MCP endpoint. Revoking a client deletes its access tokens.
+              Clients you&apos;ve authorized against the MCP endpoint. Revoking
+              disconnects the client from your account — it invalidates your
+              tokens; the client re-appears if you authorize it again.
             </p>
             <div className="card" style={{ overflow: "hidden" }}>
               {clientRows.length === 0 ? (

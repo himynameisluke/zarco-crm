@@ -12,7 +12,7 @@ const CONFIRM_REQUIRED_NOTE =
   "DESTRUCTIVE — you MUST confirm with the user in plain language before calling with confirm=true. The tool will refuse without explicit confirm=true.";
 
 const SEND_REQUIRED_NOTE =
-  "HIGH-STAKES — sends external email on the user's behalf. You MUST confirm with the user before calling with confirm=true. Currently a stub (Resend not wired) — the tool will record intent + transition state but no real email leaves the system.";
+  "HIGH-STAKES — sends external email on the user's behalf. You MUST confirm with the user before calling with confirm=true. No email is delivered yet (Resend not wired), but this is NOT side-effect-free: transitioning a quote to 'sent' makes its public /q/[token] link and PDF live to anyone holding the URL. Treat it as publishing the quote.";
 
 /**
  * High-stakes tools that mutate the world in ways that are hard or impossible
