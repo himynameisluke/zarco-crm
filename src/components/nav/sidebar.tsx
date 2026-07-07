@@ -14,6 +14,7 @@ import {
   Megaphone,
   Plug,
   Plus,
+  RefreshCw,
   Search,
   Settings,
   SquareKanban,
@@ -54,6 +55,7 @@ const WORKSPACE_NAV: NavItemDef[] = [
   { href: "/activity", label: "Activity", icon: Activity },
   { href: "/tasks", label: "Tasks", icon: ListChecks, countKey: "tasks" },
   { href: "/quotes", label: "Quotes", icon: FileText },
+  { href: "/renewals", label: "Renewals", icon: RefreshCw },
   { href: "/campaigns", label: "Campaigns", icon: Megaphone },
 ];
 

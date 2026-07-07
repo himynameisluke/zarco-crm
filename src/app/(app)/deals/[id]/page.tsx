@@ -17,6 +17,7 @@ import {
   activities,
   authUsers,
   contacts,
+  contracts,
   deals,
   organizations,
   quotes,
@@ -118,7 +119,7 @@ export default async function DealDetailPage({
     notFound();
   }
 
-  const [primaryContact, dealActivities, dealQuotes] = await Promise.all([
+  const [primaryContact, dealActivities, dealQuotes, dealContract] = await Promise.all([
     deal.primaryContactId
       ? db
           .select()
@@ -152,6 +153,14 @@ export default async function DealDetailPage({
       )
       .orderBy(desc(quotes.createdAt))
       .limit(20),
+    db
+      .select({ id: contracts.id, name: contracts.name })
+      .from(contracts)
+      .where(
+        and(eq(contracts.workspaceId, workspace.id), eq(contracts.dealId, id)),
+      )
+      .limit(1)
+      .then((rows) => rows[0] ?? null),
   ]);
 
   return (
@@ -163,6 +172,21 @@ export default async function DealDetailPage({
         ]}
         actions={
           <>
+            {deal.stage === "won" ? (
+              dealContract ? (
+                <Button variant="outline" size="sm" asChild>
+                  <Link href="/renewals">Contract: {dealContract.name}</Link>
+                </Button>
+              ) : (
+                <Button variant="outline" size="sm" asChild>
+                  {/* Won recurring work should become a contract so the
+                      renewal never sneaks up — prefills from this deal. */}
+                  <Link href={`/renewals/new?dealId=${deal.id}`}>
+                    Track as contract
+                  </Link>
+                </Button>
+              )
+            ) : null}
             <Button variant="outline" size="sm" asChild>
               <Link href={`/deals/${deal.id}/edit`}>
                 <Pencil className="h-4 w-4" />

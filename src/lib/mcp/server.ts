@@ -6,11 +6,12 @@ import { registerDealTools } from "./tools/deals";
 import { registerActivityTools } from "./tools/activities";
 import { registerTaskTools } from "./tools/tasks";
 import { registerQuoteTools } from "./tools/quotes";
+import { registerContractTools } from "./tools/contracts";
 import { registerHighStakesTools } from "./tools/high-stakes";
 
 export const MCP_SERVER_INFO = {
   name: "zarco-crm",
-  version: "0.5.0",
+  version: "0.6.0",
 } as const;
 
 /**
@@ -23,6 +24,7 @@ export const MCP_SERVER_INFO = {
  *   - Activities:     search_activities, list_recent_activities
  *   - Tasks:          list_tasks
  *   - Quotes:         list_quotes, get_quote
+ *   - Contracts:      list_contracts (renewals book — dueWithinDays filter)
  *
  * Write tools (all audit via auditMcpWrite, tagged source='mcp'):
  *   - Contacts:       create_contact, update_contact
@@ -31,6 +33,7 @@ export const MCP_SERVER_INFO = {
  *   - Activities:     log_activity
  *   - Tasks:          create_task, complete_task
  *   - Quotes:         create_quote, update_quote
+ *   - Contracts:      create_contract, update_contract
  *
  * High-stakes tools (require confirm=true, marked destructiveHint):
  *   - Deletes:        delete_contact, delete_organization, delete_deal
@@ -45,5 +48,6 @@ export function registerTools(server: McpServer) {
   registerActivityTools(server);
   registerTaskTools(server);
   registerQuoteTools(server);
+  registerContractTools(server);
   registerHighStakesTools(server);
 }
