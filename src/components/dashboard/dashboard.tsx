@@ -42,17 +42,7 @@ import {
   DEAL_STAGE_LABELS,
   type DealStage,
 } from "@/app/(app)/deals/schema";
-
-// Weighting probabilities for the weighted-pipeline forecast.
-// Aligned to the design's stage-bar treatment.
-const STAGE_WEIGHTS: Record<DealStage, number> = {
-  lead: 0.1,
-  qualified: 0.25,
-  proposal: 0.5,
-  negotiation: 0.75,
-  won: 1,
-  lost: 0,
-};
+import { STAGE_WEIGHTS } from "@/lib/deals/weights";
 
 // Pipeline progress dots on the dashboard mini-bar + the stacked
 // proportion bar above it. This is a *tracker* — at a glance you should

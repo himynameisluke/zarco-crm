@@ -10,7 +10,9 @@
     "db:generate": "node --env-file=.env.local node_modules/drizzle-kit/bin.cjs generate",
     "db:migrate": "node --env-file=.env.local node_modules/drizzle-kit/bin.cjs migrate",
     "db:push": "node --env-file=.env.local node_modules/drizzle-kit/bin.cjs push",
-    "db:studio": "node --env-file=.env.local node_modules/drizzle-kit/bin.cjs studio"
+    "db:studio": "node --env-file=.env.local node_modules/drizzle-kit/bin.cjs studio",
+    "test": "vitest run",
+    "test:watch": "vitest"
   },
   "dependencies": {
     "@base-ui/react": "^1.5.0",
@@ -48,6 +50,8 @@
     "eslint": "^9",
     "eslint-config-next": "16.2.6",
     "tailwindcss": "^4",
-    "typescript": "^5"
+    "typescript": "^5",
+    "vite-tsconfig-paths": "^6.1.1",
+    "vitest": "^4.1.10"
   }
 }

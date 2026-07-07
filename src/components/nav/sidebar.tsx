@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
   Activity,
+  BarChart3,
   Building2,
   ChevronsLeftRight,
   FileText,
@@ -60,6 +61,7 @@ const WORKSPACE_NAV: NavItemDef[] = [
   { href: "/tasks", label: "Tasks", icon: ListChecks, countKey: "tasks" },
   { href: "/quotes", label: "Quotes", icon: FileText },
   { href: "/renewals", label: "Renewals", icon: RefreshCw },
+  { href: "/reports", label: "Reports", icon: BarChart3 },
   { href: "/campaigns", label: "Campaigns", icon: Megaphone },
 ];
 
