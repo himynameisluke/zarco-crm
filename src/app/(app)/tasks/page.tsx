@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { and, asc, desc, eq, ne } from "drizzle-orm";
 import { ListChecks } from "lucide-react";
 
@@ -131,12 +132,13 @@ function TaskItem({
             </span>
           ) : null}
           {task.subjectType && task.subjectId ? (
-            <span
-              className="t-mono"
+            <Link
+              href={`/${task.subjectType === "organization" ? "organizations" : `${task.subjectType}s`}/${task.subjectId}`}
+              className="t-mono hover:underline"
               style={{ fontSize: 10, color: "var(--ink-4)" }}
             >
-              {task.subjectType}
-            </span>
+              {task.subjectType} ↗
+            </Link>
           ) : null}
         </div>
       </div>

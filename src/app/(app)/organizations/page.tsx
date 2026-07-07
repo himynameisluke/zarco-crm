@@ -1,16 +1,12 @@
 import Link from "next/link";
-import { desc, eq, sql } from "drizzle-orm";
+import { and, desc, eq, ilike, or, sql, type SQL } from "drizzle-orm";
 import {
   Building2,
   ChevronLeft,
   ChevronRight,
   Download,
-  Filter,
-  Layers,
-  MoreHorizontal,
   Plus,
   Search,
-  SortAsc,
 } from "lucide-react";
 
 import { db } from "@/lib/db";
@@ -19,39 +15,78 @@ import { requireUser } from "@/lib/auth";
 import { requireCurrentWorkspace } from "@/lib/workspace/current";
 import { Topbar } from "@/components/nav/topbar";
 import { EmptyState } from "@/components/empty-state";
+import { RowActionsMenu } from "@/components/ui/row-actions-menu";
 import { colorFromString } from "@/lib/colors";
 import { formatMoney, formatRelative } from "@/lib/format";
 
-export default async function OrganizationsPage() {
+const PAGE_SIZE = 50;
+
+export default async function OrganizationsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ q?: string; page?: string }>;
+}) {
   await requireUser();
   const workspace = await requireCurrentWorkspace();
+  const sp = await searchParams;
+  const q = (sp.q ?? "").trim().slice(0, 200);
+  const page = Math.max(1, Number.parseInt(sp.page ?? "1", 10) || 1);
 
-  const rows = await db
-    .select({
-      id: organizations.id,
-      name: organizations.name,
-      domain: organizations.domain,
-      industry: organizations.industry,
-      employeeCount: organizations.employeeCount,
-      updatedAt: organizations.updatedAt,
-      contactCount: sql<number>`count(distinct ${contacts.id})::int`,
-      dealCount: sql<number>`count(distinct ${deals.id})::int`,
-      pipelineValue: sql<number | null>`sum(${deals.valuePence})::bigint`,
-      lastActivityAt: sql<Date | null>`max(${activities.occurredAt})`,
-    })
-    .from(organizations)
-    .leftJoin(contacts, eq(contacts.organizationId, organizations.id))
-    .leftJoin(deals, eq(deals.organizationId, organizations.id))
-    .leftJoin(
-      activities,
-      sql`${activities.subjectType} = 'organization' AND ${activities.subjectId} = ${organizations.id}`,
-    )
-    .where(eq(organizations.workspaceId, workspace.id))
-    .groupBy(organizations.id)
-    .orderBy(desc(organizations.updatedAt))
-    .limit(200);
+  const searchCondition: SQL | undefined = q
+    ? or(
+        ilike(organizations.name, `%${q}%`),
+        ilike(organizations.domain, `%${q}%`),
+        ilike(organizations.industry, `%${q}%`),
+      )
+    : undefined;
 
-  const total = rows.length;
+  const whereClause = searchCondition
+    ? and(eq(organizations.workspaceId, workspace.id), searchCondition)
+    : eq(organizations.workspaceId, workspace.id);
+
+  const [rows, [{ total }]] = await Promise.all([
+    db
+      .select({
+        id: organizations.id,
+        name: organizations.name,
+        domain: organizations.domain,
+        industry: organizations.industry,
+        employeeCount: organizations.employeeCount,
+        updatedAt: organizations.updatedAt,
+        contactCount: sql<number>`count(distinct ${contacts.id})::int`,
+        dealCount: sql<number>`count(distinct ${deals.id})::int`,
+        pipelineValue: sql<number | null>`sum(${deals.valuePence})::bigint`,
+        lastActivityAt: sql<Date | null>`max(${activities.occurredAt})`,
+      })
+      .from(organizations)
+      .leftJoin(contacts, eq(contacts.organizationId, organizations.id))
+      .leftJoin(deals, eq(deals.organizationId, organizations.id))
+      .leftJoin(
+        activities,
+        sql`${activities.subjectType} = 'organization' AND ${activities.subjectId} = ${organizations.id}`,
+      )
+      .where(whereClause)
+      .groupBy(organizations.id)
+      .orderBy(desc(organizations.updatedAt))
+      .limit(PAGE_SIZE)
+      .offset((page - 1) * PAGE_SIZE),
+    db
+      .select({ total: sql<number>`count(*)::int` })
+      .from(organizations)
+      .where(whereClause),
+  ]);
+
+  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
+  const from = total === 0 ? 0 : (page - 1) * PAGE_SIZE + 1;
+  const to = Math.min(page * PAGE_SIZE, total);
+
+  const pageHref = (p: number) => {
+    const params = new URLSearchParams();
+    if (q) params.set("q", q);
+    if (p > 1) params.set("page", String(p));
+    const qs = params.toString();
+    return qs ? `/organizations?${qs}` : "/organizations";
+  };
 
   return (
     <>
@@ -59,10 +94,10 @@ export default async function OrganizationsPage() {
         crumbs={[{ icon: Building2, label: "Organizations" }]}
         actions={
           <>
-            <button type="button" className="btn">
+            <a href="/organizations/export" className="btn">
               <Download size={13} />
               Export
-            </button>
+            </a>
             <Link href="/organizations/new" className="btn btn-primary">
               <Plus size={13} />
               New organization
@@ -72,6 +107,7 @@ export default async function OrganizationsPage() {
       />
 
       <main className="screen flex flex-1 flex-col" style={{ minWidth: 0 }}>
+        {/* Toolbar — GET form so search is linkable and stateless */}
         <div
           style={{
             display: "flex",
@@ -81,25 +117,22 @@ export default async function OrganizationsPage() {
             borderBottom: "1px solid var(--hairline)",
           }}
         >
-          <div className="input" style={{ width: 280 }}>
-            <Search size={13} color="var(--ink-4)" />
-            <input
-              placeholder={`Search ${total.toLocaleString("en-GB")} organization${total === 1 ? "" : "s"}…`}
-            />
-          </div>
-          <button type="button" className="btn">
-            <Filter size={13} />
-            Filter
-          </button>
+          <form method="get" action="/organizations">
+            <div className="input" style={{ width: 280 }}>
+              <Search size={13} color="var(--ink-4)" />
+              <input
+                name="q"
+                defaultValue={q}
+                placeholder={`Search ${total.toLocaleString("en-GB")} organization${total === 1 ? "" : "s"}…`}
+              />
+            </div>
+          </form>
+          {q ? (
+            <Link href="/organizations" className="btn btn-ghost btn-sm">
+              Clear “{q}”
+            </Link>
+          ) : null}
           <div style={{ flex: 1 }} />
-          <button type="button" className="btn btn-ghost btn-sm">
-            <SortAsc size={12} />
-            Last activity
-          </button>
-          <button type="button" className="btn btn-ghost btn-sm">
-            <Layers size={12} />
-            Columns
-          </button>
         </div>
 
         <div style={{ flex: 1, overflow: "auto" }}>
@@ -107,13 +140,23 @@ export default async function OrganizationsPage() {
             <div style={{ padding: 32 }}>
               <EmptyState
                 icon={Building2}
-                title="No organizations yet"
-                description="Add your first organization to start tracking companies."
+                title={q ? `No organizations match “${q}”` : "No organizations yet"}
+                description={
+                  q
+                    ? "Try a different name, domain, or industry."
+                    : "Add your first organization to start tracking companies."
+                }
                 action={
-                  <Link href="/organizations/new" className="btn btn-primary">
-                    <Plus size={13} />
-                    New organization
-                  </Link>
+                  q ? (
+                    <Link href="/organizations" className="btn">
+                      Clear search
+                    </Link>
+                  ) : (
+                    <Link href="/organizations/new" className="btn btn-primary">
+                      <Plus size={13} />
+                      New organization
+                    </Link>
+                  )
                 }
               />
             </div>
@@ -204,20 +247,10 @@ export default async function OrganizationsPage() {
                           : formatRelative(o.updatedAt)}
                       </td>
                       <td>
-                        <button
-                          type="button"
-                          style={{
-                            padding: 4,
-                            borderRadius: 4,
-                            background: "transparent",
-                            border: 0,
-                            color: "var(--ink-4)",
-                            cursor: "pointer",
-                          }}
-                          aria-label="Row actions"
-                        >
-                          <MoreHorizontal size={13} />
-                        </button>
+                        <RowActionsMenu
+                          viewHref={`/organizations/${o.id}`}
+                          editHref={`/organizations/${o.id}/edit`}
+                        />
                       </td>
                     </tr>
                   );
@@ -227,7 +260,7 @@ export default async function OrganizationsPage() {
           )}
         </div>
 
-        {rows.length > 0 ? (
+        {total > 0 ? (
           <div
             style={{
               display: "flex",
@@ -240,18 +273,38 @@ export default async function OrganizationsPage() {
             }}
           >
             <span>
-              Showing 1–{total} of {total.toLocaleString("en-GB")}
+              Showing {from}–{to} of {total.toLocaleString("en-GB")}
             </span>
             <div style={{ flex: 1 }} />
-            <button type="button" className="btn btn-ghost btn-sm" disabled>
-              <ChevronLeft size={11} />
-            </button>
+            {page > 1 ? (
+              <Link
+                href={pageHref(page - 1)}
+                className="btn btn-ghost btn-sm"
+                aria-label="Previous page"
+              >
+                <ChevronLeft size={11} />
+              </Link>
+            ) : (
+              <button type="button" className="btn btn-ghost btn-sm" disabled>
+                <ChevronLeft size={11} />
+              </button>
+            )}
             <span className="t-mono" style={{ fontSize: 10.5 }}>
-              PAGE 1 / 1
+              PAGE {page} / {totalPages}
             </span>
-            <button type="button" className="btn btn-ghost btn-sm" disabled>
-              <ChevronRight size={11} />
-            </button>
+            {page < totalPages ? (
+              <Link
+                href={pageHref(page + 1)}
+                className="btn btn-ghost btn-sm"
+                aria-label="Next page"
+              >
+                <ChevronRight size={11} />
+              </Link>
+            ) : (
+              <button type="button" className="btn btn-ghost btn-sm" disabled>
+                <ChevronRight size={11} />
+              </button>
+            )}
           </div>
         ) : null}
       </main>

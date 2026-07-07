@@ -2,7 +2,7 @@ import { redirect } from "next/navigation";
 import { and, eq, ne, sql } from "drizzle-orm";
 
 import { db } from "@/lib/db";
-import { inboxItems, tasks } from "@/lib/db/schema";
+import { contracts, deals, inboxItems, tasks } from "@/lib/db/schema";
 import { createClient } from "@/lib/supabase/server";
 import { getCurrentWorkspace } from "@/lib/workspace/current";
 import { bootstrapWorkspaceForUser } from "@/lib/workspace/bootstrap";
@@ -33,34 +33,58 @@ export default async function AppLayout({ children }: { children: React.ReactNod
 
   const myWorkspaces = await listMyWorkspaces();
 
-  const [inboxCount, openTaskCount] = workspace
-    ? await Promise.all([
-        db
-          .select({ n: sql<number>`count(*)::int` })
-          .from(inboxItems)
-          .where(
-            and(
-              eq(inboxItems.workspaceId, workspace.id),
-              eq(inboxItems.status, "pending"),
-            ),
-          )
-          .then((r) => r[0]?.n ?? 0),
-        db
-          .select({ n: sql<number>`count(*)::int` })
-          .from(tasks)
-          .where(
-            and(
-              eq(tasks.workspaceId, workspace.id),
-              ne(tasks.status, "done"),
-            ),
-          )
-          .then((r) => r[0]?.n ?? 0),
-      ])
-    : [0, 0];
+  const [inboxCount, openTaskCount, negotiationCount, renewalsDueCount] =
+    workspace
+      ? await Promise.all([
+          db
+            .select({ n: sql<number>`count(*)::int` })
+            .from(inboxItems)
+            .where(
+              and(
+                eq(inboxItems.workspaceId, workspace.id),
+                eq(inboxItems.status, "pending"),
+              ),
+            )
+            .then((r) => r[0]?.n ?? 0),
+          db
+            .select({ n: sql<number>`count(*)::int` })
+            .from(tasks)
+            .where(
+              and(
+                eq(tasks.workspaceId, workspace.id),
+                ne(tasks.status, "done"),
+              ),
+            )
+            .then((r) => r[0]?.n ?? 0),
+          db
+            .select({ n: sql<number>`count(*)::int` })
+            .from(deals)
+            .where(
+              and(
+                eq(deals.workspaceId, workspace.id),
+                eq(deals.stage, "negotiation"),
+              ),
+            )
+            .then((r) => r[0]?.n ?? 0),
+          db
+            .select({ n: sql<number>`count(*)::int` })
+            .from(contracts)
+            .where(
+              and(
+                eq(contracts.workspaceId, workspace.id),
+                eq(contracts.status, "active"),
+                sql`${contracts.endDate} <= current_date + 90`,
+              ),
+            )
+            .then((r) => r[0]?.n ?? 0),
+        ])
+      : [0, 0, 0, 0];
 
   const counts: SidebarCounts = {
     inbox: inboxCount,
     tasks: openTaskCount,
+    negotiation: negotiationCount,
+    renewalsDue: renewalsDueCount,
   };
 
   return (

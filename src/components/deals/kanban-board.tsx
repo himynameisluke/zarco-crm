@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Calendar, Flame, MoreHorizontal, Plus } from "lucide-react";
+import { Calendar, Flame, Plus } from "lucide-react";
 
 import { colorFromString } from "@/lib/colors";
 import { daysSince, formatDateShort, formatMoney, getInitials } from "@/lib/format";
@@ -129,7 +129,6 @@ function DealCard({ deal }: { deal: Deal }) {
           </span>
         ) : null}
         <div style={{ flex: 1 }} />
-        <MoreHorizontal size={12} color="var(--ink-40)" />
       </div>
 
       <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>

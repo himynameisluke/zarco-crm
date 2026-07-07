@@ -11,9 +11,16 @@ import {
 } from "lucide-react";
 
 import { db } from "@/lib/db";
-import { activities, contacts, deals, organizations } from "@/lib/db/schema";
+import {
+  activities,
+  authUsers,
+  contacts,
+  deals,
+  organizations,
+} from "@/lib/db/schema";
 import { requireUser } from "@/lib/auth";
 import { requireCurrentWorkspace } from "@/lib/workspace/current";
+import { displayNameFromEmail } from "@/lib/workspace/members";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -79,8 +86,18 @@ export default async function OrganizationDetailPage({
   const { id } = await params;
 
   const [org] = await db
-    .select()
+    .select({
+      id: organizations.id,
+      name: organizations.name,
+      domain: organizations.domain,
+      website: organizations.website,
+      industry: organizations.industry,
+      employeeCount: organizations.employeeCount,
+      notes: organizations.notes,
+      ownerEmail: authUsers.email,
+    })
     .from(organizations)
+    .leftJoin(authUsers, eq(organizations.ownerId, authUsers.id))
     .where(
       and(
         eq(organizations.id, id),
@@ -170,6 +187,11 @@ export default async function OrganizationDetailPage({
             />
             <DetailRow icon={Building2} label="Industry" value={org.industry} />
             <DetailRow icon={UsersIcon} label="Employees" value={org.employeeCount} />
+            <DetailRow
+              icon={Briefcase}
+              label="Owner"
+              value={displayNameFromEmail(org.ownerEmail)}
+            />
 
             {org.notes ? (
               <>
@@ -189,7 +211,7 @@ export default async function OrganizationDetailPage({
             <CardHeader className="flex flex-row items-center justify-between">
               <CardTitle>Contacts ({orgContacts.length})</CardTitle>
               <Button asChild variant="ghost" size="sm">
-                <Link href={`/contacts/new`}>Add contact</Link>
+                <Link href={`/contacts/new?organizationId=${org.id}`}>Add contact</Link>
               </Button>
             </CardHeader>
             <CardContent>
@@ -219,7 +241,7 @@ export default async function OrganizationDetailPage({
             <CardHeader className="flex flex-row items-center justify-between">
               <CardTitle>Deals ({orgDeals.length})</CardTitle>
               <Button asChild variant="ghost" size="sm">
-                <Link href={`/deals/new`}>Add deal</Link>
+                <Link href={`/deals/new?organizationId=${org.id}`}>Add deal</Link>
               </Button>
             </CardHeader>
             <CardContent>

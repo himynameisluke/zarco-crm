@@ -8,6 +8,7 @@ import { requireUser } from "@/lib/auth";
 import { requireCurrentWorkspace } from "@/lib/workspace/current";
 import { Topbar } from "@/components/nav/topbar";
 import { EmptyState } from "@/components/empty-state";
+import { RowActionsMenu } from "@/components/ui/row-actions-menu";
 import { formatDateShort, formatMoney, formatRelative } from "@/lib/format";
 import {
   QUOTE_STATUS_CHIP,
@@ -133,20 +134,10 @@ export default async function QuotesPage() {
                       {formatRelative(q.updatedAt)}
                     </td>
                     <td>
-                      <button
-                        type="button"
-                        style={{
-                          padding: 4,
-                          borderRadius: 4,
-                          background: "transparent",
-                          border: 0,
-                          color: "var(--ink-4)",
-                          cursor: "pointer",
-                        }}
-                        aria-label="Row actions"
-                      >
-                        <MoreHorizontal size={13} />
-                      </button>
+                      <RowActionsMenu
+                        viewHref={`/quotes/${q.id}`}
+                        editHref={`/quotes/${q.id}/edit`}
+                      />
                     </td>
                   </tr>
                 ))}

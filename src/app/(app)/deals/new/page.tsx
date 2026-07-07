@@ -19,11 +19,11 @@ function contactName(c: { firstName: string | null; lastName: string | null; ema
 export default async function NewDealPage({
   searchParams,
 }: {
-  searchParams: Promise<{ stage?: string }>;
+  searchParams: Promise<{ stage?: string; organizationId?: string }>;
 }) {
   const user = await requireUser();
   const workspace = await requireCurrentWorkspace();
-  const { stage } = await searchParams;
+  const { stage, organizationId } = await searchParams;
   // The kanban "Add deal" column buttons pass ?stage= so the new deal starts
   // in the column it was created from.
   const initialStage = (DEAL_STAGES as readonly string[]).includes(stage ?? "")
@@ -68,7 +68,13 @@ export default async function NewDealPage({
         <div className="mx-auto max-w-3xl p-4 lg:p-8">
           <DealForm
             action={createDeal}
-            defaultValues={initialStage ? { stage: initialStage } : undefined}
+            defaultValues={{
+              ...(initialStage ? { stage: initialStage } : {}),
+              // Pre-select the org when arriving from its detail page.
+              ...(organizationId && orgOptions.some((o) => o.id === organizationId)
+                ? { organizationId }
+                : {}),
+            }}
             organizationOptions={orgOptions}
             contactOptions={contactOptions}
             memberOptions={members.map((m) => ({ id: m.id, name: m.name }))}

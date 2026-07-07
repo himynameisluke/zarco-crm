@@ -1,16 +1,12 @@
 import Link from "next/link";
-import { desc, eq, sql } from "drizzle-orm";
+import { and, desc, eq, ilike, or, sql, type SQL } from "drizzle-orm";
 import {
   ChevronLeft,
   ChevronRight,
   Download,
-  Filter,
-  Layers,
   Plus,
   Search,
-  SortAsc,
   Users,
-  MoreHorizontal,
 } from "lucide-react";
 
 import { db } from "@/lib/db";
@@ -19,44 +15,85 @@ import { requireUser } from "@/lib/auth";
 import { requireCurrentWorkspace } from "@/lib/workspace/current";
 import { Topbar } from "@/components/nav/topbar";
 import { EmptyState } from "@/components/empty-state";
+import { RowActionsMenu } from "@/components/ui/row-actions-menu";
 import { colorFromString } from "@/lib/colors";
 import { formatRelative, getInitials } from "@/lib/format";
+
+const PAGE_SIZE = 50;
 
 function fullName(c: { firstName: string | null; lastName: string | null }) {
   return [c.firstName, c.lastName].filter(Boolean).join(" ") || "Unnamed";
 }
 
-export default async function ContactsPage() {
+export default async function ContactsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ q?: string; page?: string }>;
+}) {
   await requireUser();
   const workspace = await requireCurrentWorkspace();
+  const sp = await searchParams;
+  const q = (sp.q ?? "").trim().slice(0, 200);
+  const page = Math.max(1, Number.parseInt(sp.page ?? "1", 10) || 1);
 
-  const rows = await db
-    .select({
-      id: contacts.id,
-      firstName: contacts.firstName,
-      lastName: contacts.lastName,
-      email: contacts.email,
-      phone: contacts.phone,
-      title: contacts.title,
-      updatedAt: contacts.updatedAt,
-      organizationId: contacts.organizationId,
-      organizationName: organizations.name,
-      dealCount: sql<number>`count(distinct ${deals.id})::int`,
-      lastActivityAt: sql<Date | null>`max(${activities.occurredAt})`,
-    })
-    .from(contacts)
-    .leftJoin(organizations, eq(contacts.organizationId, organizations.id))
-    .leftJoin(deals, eq(deals.primaryContactId, contacts.id))
-    .leftJoin(
-      activities,
-      sql`${activities.subjectType} = 'contact' AND ${activities.subjectId} = ${contacts.id}`,
-    )
-    .where(eq(contacts.workspaceId, workspace.id))
-    .groupBy(contacts.id, organizations.name)
-    .orderBy(desc(contacts.updatedAt))
-    .limit(200);
+  // Server-side search across name (incl. "first last"), email, and org name.
+  const searchCondition: SQL | undefined = q
+    ? or(
+        sql`(coalesce(${contacts.firstName}, '') || ' ' || coalesce(${contacts.lastName}, '')) ilike ${`%${q}%`}`,
+        ilike(contacts.email, `%${q}%`),
+        ilike(organizations.name, `%${q}%`),
+      )
+    : undefined;
 
-  const total = rows.length;
+  const whereClause = searchCondition
+    ? and(eq(contacts.workspaceId, workspace.id), searchCondition)
+    : eq(contacts.workspaceId, workspace.id);
+
+  const [rows, [{ total }]] = await Promise.all([
+    db
+      .select({
+        id: contacts.id,
+        firstName: contacts.firstName,
+        lastName: contacts.lastName,
+        email: contacts.email,
+        phone: contacts.phone,
+        title: contacts.title,
+        updatedAt: contacts.updatedAt,
+        organizationId: contacts.organizationId,
+        organizationName: organizations.name,
+        dealCount: sql<number>`count(distinct ${deals.id})::int`,
+        lastActivityAt: sql<Date | null>`max(${activities.occurredAt})`,
+      })
+      .from(contacts)
+      .leftJoin(organizations, eq(contacts.organizationId, organizations.id))
+      .leftJoin(deals, eq(deals.primaryContactId, contacts.id))
+      .leftJoin(
+        activities,
+        sql`${activities.subjectType} = 'contact' AND ${activities.subjectId} = ${contacts.id}`,
+      )
+      .where(whereClause)
+      .groupBy(contacts.id, organizations.name)
+      .orderBy(desc(contacts.updatedAt))
+      .limit(PAGE_SIZE)
+      .offset((page - 1) * PAGE_SIZE),
+    db
+      .select({ total: sql<number>`count(distinct ${contacts.id})::int` })
+      .from(contacts)
+      .leftJoin(organizations, eq(contacts.organizationId, organizations.id))
+      .where(whereClause),
+  ]);
+
+  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
+  const from = total === 0 ? 0 : (page - 1) * PAGE_SIZE + 1;
+  const to = Math.min(page * PAGE_SIZE, total);
+
+  const pageHref = (p: number) => {
+    const params = new URLSearchParams();
+    if (q) params.set("q", q);
+    if (p > 1) params.set("page", String(p));
+    const qs = params.toString();
+    return qs ? `/contacts?${qs}` : "/contacts";
+  };
 
   return (
     <>
@@ -64,10 +101,10 @@ export default async function ContactsPage() {
         crumbs={[{ icon: Users, label: "Contacts" }]}
         actions={
           <>
-            <button type="button" className="btn">
+            <a href="/contacts/export" className="btn">
               <Download size={13} />
               Export
-            </button>
+            </a>
             <Link href="/contacts/new" className="btn btn-primary">
               <Plus size={13} />
               New contact
@@ -77,7 +114,7 @@ export default async function ContactsPage() {
       />
 
       <main className="screen flex flex-1 flex-col" style={{ minWidth: 0 }}>
-        {/* Toolbar */}
+        {/* Toolbar — a plain GET form so search is linkable and stateless */}
         <div
           style={{
             display: "flex",
@@ -87,25 +124,22 @@ export default async function ContactsPage() {
             borderBottom: "1px solid var(--hairline)",
           }}
         >
-          <div className="input" style={{ width: 280 }}>
-            <Search size={13} color="var(--ink-4)" />
-            <input
-              placeholder={`Search ${total.toLocaleString("en-GB")} contact${total === 1 ? "" : "s"}…`}
-            />
-          </div>
-          <button type="button" className="btn">
-            <Filter size={13} />
-            Filter
-          </button>
+          <form method="get" action="/contacts">
+            <div className="input" style={{ width: 280 }}>
+              <Search size={13} color="var(--ink-4)" />
+              <input
+                name="q"
+                defaultValue={q}
+                placeholder={`Search ${total.toLocaleString("en-GB")} contact${total === 1 ? "" : "s"}…`}
+              />
+            </div>
+          </form>
+          {q ? (
+            <Link href="/contacts" className="btn btn-ghost btn-sm">
+              Clear “{q}”
+            </Link>
+          ) : null}
           <div style={{ flex: 1 }} />
-          <button type="button" className="btn btn-ghost btn-sm">
-            <SortAsc size={12} />
-            Last activity
-          </button>
-          <button type="button" className="btn btn-ghost btn-sm">
-            <Layers size={12} />
-            Columns
-          </button>
         </div>
 
         {/* Table or empty state */}
@@ -114,13 +148,23 @@ export default async function ContactsPage() {
             <div style={{ padding: 32 }}>
               <EmptyState
                 icon={Users}
-                title="No contacts yet"
-                description="Add your first contact to start building your CRM."
+                title={q ? `No contacts match “${q}”` : "No contacts yet"}
+                description={
+                  q
+                    ? "Try a different name, email, or organization."
+                    : "Add your first contact to start building your CRM."
+                }
                 action={
-                  <Link href="/contacts/new" className="btn btn-primary">
-                    <Plus size={13} />
-                    New contact
-                  </Link>
+                  q ? (
+                    <Link href="/contacts" className="btn">
+                      Clear search
+                    </Link>
+                  ) : (
+                    <Link href="/contacts/new" className="btn btn-primary">
+                      <Plus size={13} />
+                      New contact
+                    </Link>
+                  )
                 }
               />
             </div>
@@ -236,21 +280,10 @@ export default async function ContactsPage() {
                           : formatRelative(c.updatedAt)}
                       </td>
                       <td>
-                        <button
-                          type="button"
-                          className="btn-ghost"
-                          style={{
-                            padding: 4,
-                            borderRadius: 4,
-                            background: "transparent",
-                            border: 0,
-                            color: "var(--ink-4)",
-                            cursor: "pointer",
-                          }}
-                          aria-label="Row actions"
-                        >
-                          <MoreHorizontal size={13} />
-                        </button>
+                        <RowActionsMenu
+                          viewHref={`/contacts/${c.id}`}
+                          editHref={`/contacts/${c.id}/edit`}
+                        />
                       </td>
                     </tr>
                   );
@@ -260,8 +293,8 @@ export default async function ContactsPage() {
           )}
         </div>
 
-        {/* Footer */}
-        {rows.length > 0 ? (
+        {/* Footer — real pagination */}
+        {total > 0 ? (
           <div
             style={{
               display: "flex",
@@ -274,18 +307,38 @@ export default async function ContactsPage() {
             }}
           >
             <span>
-              Showing 1–{total} of {total.toLocaleString("en-GB")}
+              Showing {from}–{to} of {total.toLocaleString("en-GB")}
             </span>
             <div style={{ flex: 1 }} />
-            <button type="button" className="btn btn-ghost btn-sm" disabled>
-              <ChevronLeft size={11} />
-            </button>
+            {page > 1 ? (
+              <Link
+                href={pageHref(page - 1)}
+                className="btn btn-ghost btn-sm"
+                aria-label="Previous page"
+              >
+                <ChevronLeft size={11} />
+              </Link>
+            ) : (
+              <button type="button" className="btn btn-ghost btn-sm" disabled>
+                <ChevronLeft size={11} />
+              </button>
+            )}
             <span className="t-mono" style={{ fontSize: 10.5 }}>
-              PAGE 1 / 1
+              PAGE {page} / {totalPages}
             </span>
-            <button type="button" className="btn btn-ghost btn-sm" disabled>
-              <ChevronRight size={11} />
-            </button>
+            {page < totalPages ? (
+              <Link
+                href={pageHref(page + 1)}
+                className="btn btn-ghost btn-sm"
+                aria-label="Next page"
+              >
+                <ChevronRight size={11} />
+              </Link>
+            ) : (
+              <button type="button" className="btn btn-ghost btn-sm" disabled>
+                <ChevronRight size={11} />
+              </button>
+            )}
           </div>
         ) : null}
       </main>

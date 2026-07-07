@@ -18,8 +18,10 @@ function contactName(c: { firstName: string | null; lastName: string | null }) {
  * for the command palette's quick-jump section, then hands them to the
  * client palette.
  *
- * Limited to 30 items total (10 of each kind). Anything beyond that the user
- * navigates to the relevant list page.
+ * 100 of each kind — at 10 each the palette could only "find" the 30 most
+ * recently touched records, which read as broken search. cmdk filters
+ * client-side, so 300 rows is still instant; swap for a real server search
+ * once the dataset outgrows this.
  */
 export async function CommandPaletteLoader() {
   const workspace = await getCurrentWorkspace();
@@ -37,7 +39,7 @@ export async function CommandPaletteLoader() {
       .from(contacts)
       .where(eq(contacts.workspaceId, workspace.id))
       .orderBy(desc(contacts.updatedAt))
-      .limit(10),
+      .limit(100),
     db
       .select({
         id: organizations.id,
@@ -47,7 +49,7 @@ export async function CommandPaletteLoader() {
       .from(organizations)
       .where(eq(organizations.workspaceId, workspace.id))
       .orderBy(desc(organizations.updatedAt))
-      .limit(10),
+      .limit(100),
     db
       .select({
         id: deals.id,
@@ -59,7 +61,7 @@ export async function CommandPaletteLoader() {
       .from(deals)
       .where(eq(deals.workspaceId, workspace.id))
       .orderBy(desc(deals.updatedAt))
-      .limit(10),
+      .limit(100),
   ]);
 
   const entities: PaletteEntity[] = [

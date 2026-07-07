@@ -33,6 +33,10 @@ import {
 export type SidebarCounts = {
   inbox?: number;
   tasks?: number;
+  /** Open deals currently in negotiation. */
+  negotiation?: number;
+  /** Active contracts renewing within 90 days. */
+  renewalsDue?: number;
 };
 
 type NavItemDef = {
@@ -68,13 +72,14 @@ type PinnedView = {
   href: string;
   label: string;
   dotClass: string;
-  count?: string | number;
+  countKey: keyof SidebarCounts;
 };
 
+// Live views with REAL counts (the originals were hardcoded mock numbers
+// pointing at filters that didn't exist).
 const PINNED_VIEWS: PinnedView[] = [
-  { href: "/deals?stage=negotiation", label: "In negotiation", dotClass: "--amber", count: 5 },
-  { href: "/contacts?stale=14d", label: "No activity 14d", dotClass: "--warn", count: 11 },
-  { href: "/organizations?segment=uk-smes", label: "UK SMEs", dotClass: "--info", count: 38 },
+  { href: "/deals?stage=negotiation", label: "In negotiation", dotClass: "--amber", countKey: "negotiation" },
+  { href: "/renewals", label: "Renewing ≤90d", dotClass: "--warn", countKey: "renewalsDue" },
 ];
 
 function NavItem({
@@ -275,8 +280,8 @@ export function Sidebar({
                 <Link href={view.href} className="nav-item">
                   <span className={cn("dot", view.dotClass)} />
                   <span className="grow truncate">{view.label}</span>
-                  {view.count !== undefined ? (
-                    <span className="ni-count">{view.count}</span>
+                  {counts[view.countKey] ? (
+                    <span className="ni-count">{counts[view.countKey]}</span>
                   ) : null}
                 </Link>
               </li>

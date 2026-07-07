@@ -9,9 +9,14 @@ import { Topbar } from "@/components/nav/topbar";
 import { ContactForm } from "@/components/contacts/contact-form";
 import { createContact } from "../actions";
 
-export default async function NewContactPage() {
+export default async function NewContactPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ organizationId?: string }>;
+}) {
   await requireUser();
   const workspace = await requireCurrentWorkspace();
+  const { organizationId } = await searchParams;
 
   const orgOptions = await db
     .select({ id: organizations.id, name: organizations.name })
@@ -32,6 +37,13 @@ export default async function NewContactPage() {
         <div className="mx-auto max-w-3xl p-4 lg:p-8">
           <ContactForm
             action={createContact}
+            defaultValues={
+              // Pre-select the org when arriving from its detail page —
+              // validity is enforced by the options list + server check.
+              organizationId && orgOptions.some((o) => o.id === organizationId)
+                ? { organizationId }
+                : undefined
+            }
             organizationOptions={orgOptions}
             cancelHref="/contacts"
           />
