@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { Eye, MoreHorizontal, Pencil } from "lucide-react";
+import { ArrowUpRight, MoreHorizontal, Pencil } from "lucide-react";
 
 import {
   DropdownMenu,
@@ -42,7 +42,7 @@ export function RowActionsMenu({
       <DropdownMenuContent align="end">
         <DropdownMenuItem asChild>
           <Link href={viewHref}>
-            <Eye className="h-3.5 w-3.5" />
+            <ArrowUpRight className="h-3.5 w-3.5" />
             View
           </Link>
         </DropdownMenuItem>
