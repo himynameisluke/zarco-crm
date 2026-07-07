@@ -40,3 +40,17 @@ test("null values coalesce to zero", () => {
   expect(r.bestCasePence).toBe(0);
   expect(r.months[0].grossPence).toBe(0);
 });
+
+test("open deals closing outside the 6-month window aren't bucketed but still count in totals", () => {
+  const outOfWindow: ForecastDealRow[] = [
+    { stage: "proposal", valuePence: 400000, closeDate: "2027-06-01" }, // future, beyond 6m window
+    { stage: "qualified", valuePence: 100000, closeDate: "2026-01-01" }, // past, before this month
+  ];
+  const r = computeForecast(outOfWindow, NOW);
+  // neither lands in any month bar
+  expect(r.months.every((m) => m.grossPence === 0)).toBe(true);
+  // but both still count toward best case and weighted pipeline
+  expect(r.bestCasePence).toBe(500000); // 400000 + 100000
+  // proposal 400000*.5 + qualified 100000*.25 = 200000 + 25000
+  expect(r.weightedPipelinePence).toBe(225000);
+});
