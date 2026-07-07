@@ -10,13 +10,17 @@ import {
   numeric,
   jsonb,
   date,
+  boolean,
   index,
   primaryKey,
 } from "drizzle-orm/pg-core";
 
 const authSchema = pgSchema("auth");
-const authUsers = authSchema.table("users", {
+// Supabase-managed table. We declare only the columns we read: id for FKs,
+// email to resolve owner/assignee display names in the UI.
+export const authUsers = authSchema.table("users", {
   id: uuid("id").primaryKey(),
+  email: text("email"),
 });
 
 export const dealType = pgEnum("deal_type", [
@@ -127,6 +131,11 @@ export const workspaces = pgTable(
     ownerId: uuid("owner_id").references(() => authUsers.id, {
       onDelete: "set null",
     }),
+    // Monotonic per-workspace quote-number counter. Bumped atomically
+    // (UPDATE ... RETURNING) so concurrent quote creates can't collide and
+    // deleting a quote never causes a number to be reissued — unlike the old
+    // count(*)+1 scheme.
+    quoteCounter: integer("quote_counter").notNull().default(0),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
       .defaultNow(),
@@ -221,6 +230,14 @@ export const deals = pgTable(
     valuePence: bigint("value_pence", { mode: "number" }),
     currency: text("currency").notNull().default("GBP"),
     closeDate: date("close_date"),
+    // Why the deal was lost — set when stage transitions to 'lost'. The
+    // single most useful field for win/loss reporting later.
+    lostReason: text("lost_reason"),
+    // When the deal last changed stage. Powers TRUE days-in-stage on the
+    // kanban (updatedAt resets on any edit, which lied about stage age).
+    stageChangedAt: timestamp("stage_changed_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
     organizationId: uuid("organization_id").references(() => organizations.id, {
       onDelete: "set null",
     }),
@@ -236,6 +253,76 @@ export const deals = pgTable(
     index("deals_org_idx").on(t.organizationId),
     index("deals_stage_idx").on(t.stage),
     index("deals_owner_idx").on(t.ownerId),
+  ],
+);
+
+// =============================================================================
+// Contracts — the renewals engine
+// =============================================================================
+// A contract is what a WON deal becomes when the work is recurring (retainers,
+// support agreements, subscriptions). Where deals answer "what might we win?",
+// contracts answer "what do we already have, and when does it renew?" —
+// the Salesforce contracts / HubSpot recurring-revenue equivalent.
+//
+// endDate is the renewal date. The /renewals view surfaces contracts ending
+// soon; "Create renewal deal" spawns a pre-filled deal and links it back via
+// renewalDealId so a contract only ever gets one open renewal opportunity.
+
+export const contractStatus = pgEnum("contract_status", [
+  "active",
+  "renewed",
+  "lapsed",
+  "cancelled",
+]);
+
+export const contractBillingPeriod = pgEnum("contract_billing_period", [
+  "monthly",
+  "quarterly",
+  "annual",
+  "one_off",
+]);
+
+export const contracts = pgTable(
+  "contracts",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    workspaceId: uuid("workspace_id")
+      .notNull()
+      .references(() => workspaces.id, { onDelete: "restrict" }),
+    name: text("name").notNull(),
+    organizationId: uuid("organization_id").references(() => organizations.id, {
+      onDelete: "set null",
+    }),
+    // The won deal this contract came from.
+    dealId: uuid("deal_id").references(() => deals.id, { onDelete: "set null" }),
+    status: contractStatus("status").notNull().default("active"),
+    // Value per billing period (e.g. £2,000 monthly), not lifetime value.
+    valuePence: bigint("value_pence", { mode: "number" }),
+    currency: text("currency").notNull().default("GBP"),
+    billingPeriod: contractBillingPeriod("billing_period")
+      .notNull()
+      .default("monthly"),
+    startDate: date("start_date").notNull(),
+    // The renewal date — what the /renewals view keys on.
+    endDate: date("end_date").notNull(),
+    autoRenew: boolean("auto_renew").notNull().default(false),
+    // The renewal opportunity spawned from this contract, if any.
+    renewalDealId: uuid("renewal_deal_id").references(() => deals.id, {
+      onDelete: "set null",
+    }),
+    notes: text("notes"),
+    ownerId: uuid("owner_id").references(() => authUsers.id, {
+      onDelete: "set null",
+    }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    index("contracts_workspace_idx").on(t.workspaceId),
+    index("contracts_org_idx").on(t.organizationId),
+    index("contracts_deal_idx").on(t.dealId),
+    index("contracts_end_idx").on(t.endDate),
+    index("contracts_status_idx").on(t.status),
   ],
 );
 
