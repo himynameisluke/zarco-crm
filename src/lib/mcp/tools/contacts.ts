@@ -4,9 +4,9 @@ import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 
 import { db } from "@/lib/db";
 import { activities, contacts, organizations } from "@/lib/db/schema";
-import { getPrimaryWorkspaceIdForUser } from "@/lib/workspace/current";
 import { auditMcpWrite } from "../audit";
-import { getMcpContext, textResult } from "../context";
+import { requireMcpWorkspace, textResult } from "../context";
+import { entityInWorkspace } from "../scope";
 
 function nullable(value: string | undefined | null): string | null {
   if (!value) return null;
@@ -33,12 +33,12 @@ export function registerContactTools(server: McpServer) {
       annotations: { readOnlyHint: true, idempotentHint: true },
     },
     async ({ query }, { authInfo }) => {
-      getMcpContext(authInfo);
+      const { workspaceId } = await requireMcpWorkspace(authInfo);
       // Match each whitespace-separated term against first name, last name, email,
       // or the full "first last" name — so "George Hemingway" matches a contact
       // whose first name is George and last name is Hemingway (single-field
       // substring matching missed these). All terms must match (AND).
-      const fullName = sql`coalesce(${contacts.firstName}, '') || ' ' || coalesce(${contacts.lastName}, '')`;
+      const fullNameExpr = sql`coalesce(${contacts.firstName}, '') || ' ' || coalesce(${contacts.lastName}, '')`;
       const terms = query.trim().split(/\s+/).filter(Boolean);
       const perTerm = terms.map((term) => {
         const p = `%${term}%`;
@@ -46,10 +46,12 @@ export function registerContactTools(server: McpServer) {
           ilike(contacts.firstName, p),
           ilike(contacts.lastName, p),
           ilike(contacts.email, p),
-          ilike(fullName, p),
+          ilike(fullNameExpr, p),
         );
       });
-      const where = perTerm.length ? and(...perTerm) : ilike(fullName, `%${query}%`);
+      const search = perTerm.length
+        ? and(...perTerm)
+        : ilike(fullNameExpr, `%${query}%`);
       const rows = await db
         .select({
           id: contacts.id,
@@ -60,8 +62,14 @@ export function registerContactTools(server: McpServer) {
           organizationName: organizations.name,
         })
         .from(contacts)
-        .leftJoin(organizations, eq(contacts.organizationId, organizations.id))
-        .where(where)
+        .leftJoin(
+          organizations,
+          and(
+            eq(contacts.organizationId, organizations.id),
+            eq(organizations.workspaceId, workspaceId),
+          ),
+        )
+        .where(and(eq(contacts.workspaceId, workspaceId), search))
         .orderBy(desc(contacts.updatedAt))
         .limit(20);
       return textResult({ count: rows.length, contacts: rows });
@@ -79,7 +87,7 @@ export function registerContactTools(server: McpServer) {
       annotations: { readOnlyHint: true, idempotentHint: true },
     },
     async ({ id }, { authInfo }) => {
-      getMcpContext(authInfo);
+      const { workspaceId } = await requireMcpWorkspace(authInfo);
 
       const [contact] = await db
         .select({
@@ -97,8 +105,14 @@ export function registerContactTools(server: McpServer) {
           updatedAt: contacts.updatedAt,
         })
         .from(contacts)
-        .leftJoin(organizations, eq(contacts.organizationId, organizations.id))
-        .where(eq(contacts.id, id))
+        .leftJoin(
+          organizations,
+          and(
+            eq(contacts.organizationId, organizations.id),
+            eq(organizations.workspaceId, workspaceId),
+          ),
+        )
+        .where(and(eq(contacts.id, id), eq(contacts.workspaceId, workspaceId)))
         .limit(1);
 
       if (!contact) {
@@ -117,6 +131,7 @@ export function registerContactTools(server: McpServer) {
         .from(activities)
         .where(
           and(
+            eq(activities.workspaceId, workspaceId),
             eq(activities.subjectType, "contact"),
             eq(activities.subjectId, id),
           ),
@@ -149,11 +164,18 @@ export function registerContactTools(server: McpServer) {
       annotations: { destructiveHint: false, idempotentHint: false },
     },
     async (input, { authInfo }) => {
-      const { userId } = getMcpContext(authInfo);
-      const workspaceId = await getPrimaryWorkspaceIdForUser(userId);
-      if (!workspaceId) {
-        throw new Error("User has no workspace; cannot create contact");
+      const { userId, workspaceId } = await requireMcpWorkspace(authInfo);
+
+      if (
+        input.organizationId &&
+        !(await entityInWorkspace("organization", input.organizationId, workspaceId))
+      ) {
+        return textResult({
+          error: "invalid_reference",
+          message: "organizationId does not exist in this workspace",
+        });
       }
+
       const [inserted] = await db
         .insert(contacts)
         .values({
@@ -171,6 +193,7 @@ export function registerContactTools(server: McpServer) {
         .returning();
 
       await auditMcpWrite({
+        workspaceId,
         type: "note",
         subjectType: "contact",
         subjectId: inserted.id,
@@ -201,7 +224,17 @@ export function registerContactTools(server: McpServer) {
       annotations: { destructiveHint: false, idempotentHint: true },
     },
     async ({ id, ...patch }, { authInfo }) => {
-      const { userId } = getMcpContext(authInfo);
+      const { userId, workspaceId } = await requireMcpWorkspace(authInfo);
+
+      if (
+        patch.organizationId &&
+        !(await entityInWorkspace("organization", patch.organizationId, workspaceId))
+      ) {
+        return textResult({
+          error: "invalid_reference",
+          message: "organizationId does not exist in this workspace",
+        });
+      }
 
       const updateValues: Record<string, unknown> = { updatedAt: new Date() };
       if (patch.firstName !== undefined) updateValues.firstName = patch.firstName;
@@ -218,7 +251,7 @@ export function registerContactTools(server: McpServer) {
       const [updated] = await db
         .update(contacts)
         .set(updateValues)
-        .where(eq(contacts.id, id))
+        .where(and(eq(contacts.id, id), eq(contacts.workspaceId, workspaceId)))
         .returning();
 
       if (!updated) {
@@ -230,6 +263,7 @@ export function registerContactTools(server: McpServer) {
       );
 
       await auditMcpWrite({
+        workspaceId,
         type: "note",
         subjectType: "contact",
         subjectId: id,
@@ -257,8 +291,10 @@ export function registerContactTools(server: McpServer) {
       },
       annotations: { destructiveHint: false, idempotentHint: true },
     },
-    async ({ organizationId, createdSinceDays, limit }) => {
+    async ({ organizationId, createdSinceDays, limit }, { authInfo }) => {
+      const { workspaceId } = await requireMcpWorkspace(authInfo);
       const filters = [
+        eq(contacts.workspaceId, workspaceId),
         organizationId ? eq(contacts.organizationId, organizationId) : undefined,
         createdSinceDays
           ? gte(
@@ -282,8 +318,14 @@ export function registerContactTools(server: McpServer) {
           updatedAt: contacts.updatedAt,
         })
         .from(contacts)
-        .leftJoin(organizations, eq(contacts.organizationId, organizations.id))
-        .where(filters.length ? and(...filters) : undefined)
+        .leftJoin(
+          organizations,
+          and(
+            eq(contacts.organizationId, organizations.id),
+            eq(organizations.workspaceId, workspaceId),
+          ),
+        )
+        .where(and(...filters))
         .orderBy(desc(contacts.updatedAt))
         .limit(limit);
 

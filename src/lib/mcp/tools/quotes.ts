@@ -10,9 +10,9 @@ import {
   quoteLineItems,
   quotes,
 } from "@/lib/db/schema";
-import { getPrimaryWorkspaceIdForUser } from "@/lib/workspace/current";
 import { auditMcpWrite } from "../audit";
-import { getMcpContext, textResult } from "../context";
+import { requireMcpWorkspace, textResult } from "../context";
+import { entityInWorkspace } from "../scope";
 
 const STATUS_VALUES = [
   "draft",
@@ -72,10 +72,30 @@ export function registerQuoteTools(server: McpServer) {
       annotations: { destructiveHint: false, idempotentHint: false },
     },
     async (input, { authInfo }) => {
-      const { userId } = getMcpContext(authInfo);
-      const workspaceId = await getPrimaryWorkspaceIdForUser(userId);
-      if (!workspaceId) {
-        throw new Error("User has no workspace; cannot create quote");
+      const { userId, workspaceId } = await requireMcpWorkspace(authInfo);
+
+      if (!(await entityInWorkspace("deal", input.dealId, workspaceId))) {
+        return textResult({
+          error: "invalid_reference",
+          message: "dealId does not exist in this workspace",
+        });
+      }
+      if (
+        !(await entityInWorkspace("organization", input.organizationId, workspaceId))
+      ) {
+        return textResult({
+          error: "invalid_reference",
+          message: "organizationId does not exist in this workspace",
+        });
+      }
+      if (
+        input.contactId &&
+        !(await entityInWorkspace("contact", input.contactId, workspaceId))
+      ) {
+        return textResult({
+          error: "invalid_reference",
+          message: "contactId does not exist in this workspace",
+        });
       }
 
       const { subtotalPence, totalPence } = computeTotals(
@@ -121,6 +141,7 @@ export function registerQuoteTools(server: McpServer) {
 
       // Attribute on the deal timeline. dealId is always set now (required).
       await auditMcpWrite({
+        workspaceId,
         type: "note",
         subjectType: "deal",
         subjectId: inserted.dealId,
@@ -148,8 +169,10 @@ export function registerQuoteTools(server: McpServer) {
       },
       annotations: { destructiveHint: false, idempotentHint: true },
     },
-    async ({ status, dealId, organizationId, limit }) => {
+    async ({ status, dealId, organizationId, limit }, { authInfo }) => {
+      const { workspaceId } = await requireMcpWorkspace(authInfo);
       const filters = [
+        eq(quotes.workspaceId, workspaceId),
         status ? eq(quotes.status, status) : undefined,
         dealId ? eq(quotes.dealId, dealId) : undefined,
         organizationId ? eq(quotes.organizationId, organizationId) : undefined,
@@ -171,8 +194,14 @@ export function registerQuoteTools(server: McpServer) {
           createdAt: quotes.createdAt,
         })
         .from(quotes)
-        .leftJoin(organizations, eq(quotes.organizationId, organizations.id))
-        .where(filters.length ? and(...filters) : undefined)
+        .leftJoin(
+          organizations,
+          and(
+            eq(quotes.organizationId, organizations.id),
+            eq(organizations.workspaceId, workspaceId),
+          ),
+        )
+        .where(and(...filters))
         .orderBy(desc(quotes.createdAt))
         .limit(limit);
 
@@ -190,28 +219,63 @@ export function registerQuoteTools(server: McpServer) {
       },
       annotations: { destructiveHint: false, idempotentHint: true },
     },
-    async ({ id }) => {
+    async ({ id }, { authInfo }) => {
+      const { workspaceId } = await requireMcpWorkspace(authInfo);
       const [quote] = await db
         .select()
         .from(quotes)
-        .where(eq(quotes.id, id))
+        .where(and(eq(quotes.id, id), eq(quotes.workspaceId, workspaceId)))
         .limit(1);
       if (!quote) return textResult({ error: "not_found", id });
 
       const items = await db
         .select()
         .from(quoteLineItems)
-        .where(eq(quoteLineItems.quoteId, id))
+        .where(
+          and(
+            eq(quoteLineItems.quoteId, id),
+            eq(quoteLineItems.workspaceId, workspaceId),
+          ),
+        )
         .orderBy(asc(quoteLineItems.sortOrder));
 
       const [linkedDeal] = quote.dealId
-        ? await db.select({ id: deals.id, name: deals.name }).from(deals).where(eq(deals.id, quote.dealId)).limit(1)
+        ? await db
+            .select({ id: deals.id, name: deals.name })
+            .from(deals)
+            .where(
+              and(eq(deals.id, quote.dealId), eq(deals.workspaceId, workspaceId)),
+            )
+            .limit(1)
         : [null];
       const [linkedOrg] = quote.organizationId
-        ? await db.select({ id: organizations.id, name: organizations.name }).from(organizations).where(eq(organizations.id, quote.organizationId)).limit(1)
+        ? await db
+            .select({ id: organizations.id, name: organizations.name })
+            .from(organizations)
+            .where(
+              and(
+                eq(organizations.id, quote.organizationId),
+                eq(organizations.workspaceId, workspaceId),
+              ),
+            )
+            .limit(1)
         : [null];
       const [linkedContact] = quote.contactId
-        ? await db.select({ id: contacts.id, firstName: contacts.firstName, lastName: contacts.lastName, email: contacts.email }).from(contacts).where(eq(contacts.id, quote.contactId)).limit(1)
+        ? await db
+            .select({
+              id: contacts.id,
+              firstName: contacts.firstName,
+              lastName: contacts.lastName,
+              email: contacts.email,
+            })
+            .from(contacts)
+            .where(
+              and(
+                eq(contacts.id, quote.contactId),
+                eq(contacts.workspaceId, workspaceId),
+              ),
+            )
+            .limit(1)
         : [null];
 
       return textResult({
@@ -247,14 +311,39 @@ export function registerQuoteTools(server: McpServer) {
       annotations: { destructiveHint: false, idempotentHint: true },
     },
     async ({ id, lineItems, ...patch }, { authInfo }) => {
-      const { userId } = getMcpContext(authInfo);
+      const { userId, workspaceId } = await requireMcpWorkspace(authInfo);
 
       const [existing] = await db
         .select()
         .from(quotes)
-        .where(eq(quotes.id, id))
+        .where(and(eq(quotes.id, id), eq(quotes.workspaceId, workspaceId)))
         .limit(1);
       if (!existing) return textResult({ error: "not_found", id });
+
+      if (patch.dealId && !(await entityInWorkspace("deal", patch.dealId, workspaceId))) {
+        return textResult({
+          error: "invalid_reference",
+          message: "dealId does not exist in this workspace",
+        });
+      }
+      if (
+        patch.organizationId &&
+        !(await entityInWorkspace("organization", patch.organizationId, workspaceId))
+      ) {
+        return textResult({
+          error: "invalid_reference",
+          message: "organizationId does not exist in this workspace",
+        });
+      }
+      if (
+        patch.contactId &&
+        !(await entityInWorkspace("contact", patch.contactId, workspaceId))
+      ) {
+        return textResult({
+          error: "invalid_reference",
+          message: "contactId does not exist in this workspace",
+        });
+      }
 
       const updateValues: Record<string, unknown> = { updatedAt: new Date() };
       if (patch.currency !== undefined) updateValues.currency = patch.currency;
@@ -276,7 +365,14 @@ export function registerQuoteTools(server: McpServer) {
         updateValues.subtotalPence = totals.subtotalPence;
         updateValues.totalPence = totals.totalPence;
 
-        await db.delete(quoteLineItems).where(eq(quoteLineItems.quoteId, id));
+        await db
+          .delete(quoteLineItems)
+          .where(
+            and(
+              eq(quoteLineItems.quoteId, id),
+              eq(quoteLineItems.workspaceId, workspaceId),
+            ),
+          );
         await db.insert(quoteLineItems).values(
           lineItems.map((li, i) => ({
             quoteId: id,
@@ -295,7 +391,7 @@ export function registerQuoteTools(server: McpServer) {
       const [updated] = await db
         .update(quotes)
         .set(updateValues)
-        .where(eq(quotes.id, id))
+        .where(and(eq(quotes.id, id), eq(quotes.workspaceId, workspaceId)))
         .returning();
 
       const changedFields = Object.keys(updateValues).filter(
@@ -304,6 +400,7 @@ export function registerQuoteTools(server: McpServer) {
       if (lineItems) changedFields.push(`lineItems(${lineItems.length})`);
 
       await auditMcpWrite({
+        workspaceId,
         type: "note",
         subjectType: "deal",
         // If the quote isn't linked to a deal, log against the org / contact

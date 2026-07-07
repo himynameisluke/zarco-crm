@@ -4,8 +4,8 @@ import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 
 import { db } from "@/lib/db";
 import { activities } from "@/lib/db/schema";
-import { getPrimaryWorkspaceIdForUser } from "@/lib/workspace/current";
-import { getMcpContext, textResult } from "../context";
+import { requireMcpWorkspace, textResult } from "../context";
+import { entityInWorkspace } from "../scope";
 
 const LOGGABLE_TYPES = [
   "email",
@@ -62,9 +62,9 @@ export function registerActivityTools(server: McpServer) {
       annotations: { readOnlyHint: true, idempotentHint: true },
     },
     async ({ query, type, subjectType, days }, { authInfo }) => {
-      getMcpContext(authInfo);
+      const { workspaceId } = await requireMcpWorkspace(authInfo);
 
-      const conditions: SQL[] = [];
+      const conditions: SQL[] = [eq(activities.workspaceId, workspaceId)];
       if (query) {
         const pattern = `%${query}%`;
         conditions.push(
@@ -90,7 +90,7 @@ export function registerActivityTools(server: McpServer) {
           occurredAt: activities.occurredAt,
         })
         .from(activities)
-        .where(conditions.length ? and(...conditions) : undefined)
+        .where(and(...conditions))
         .orderBy(desc(activities.occurredAt))
         .limit(50);
 
@@ -122,7 +122,7 @@ export function registerActivityTools(server: McpServer) {
       annotations: { readOnlyHint: true, idempotentHint: true },
     },
     async ({ days, limit }, { authInfo }) => {
-      getMcpContext(authInfo);
+      const { workspaceId } = await requireMcpWorkspace(authInfo);
 
       const rows = await db
         .select({
@@ -135,7 +135,12 @@ export function registerActivityTools(server: McpServer) {
           occurredAt: activities.occurredAt,
         })
         .from(activities)
-        .where(gte(activities.occurredAt, daysAgo(days)))
+        .where(
+          and(
+            eq(activities.workspaceId, workspaceId),
+            gte(activities.occurredAt, daysAgo(days)),
+          ),
+        )
         .orderBy(desc(activities.occurredAt))
         .limit(limit);
 
@@ -177,12 +182,18 @@ export function registerActivityTools(server: McpServer) {
       annotations: { destructiveHint: false, idempotentHint: false },
     },
     async (input, { authInfo }) => {
-      const { userId } = getMcpContext(authInfo);
-      const occurredAt = input.occurredAt ? new Date(input.occurredAt) : new Date();
-      const workspaceId = await getPrimaryWorkspaceIdForUser(userId);
-      if (!workspaceId) {
-        throw new Error("User has no workspace; cannot log activity");
+      const { userId, workspaceId } = await requireMcpWorkspace(authInfo);
+
+      if (
+        !(await entityInWorkspace(input.subjectType, input.subjectId, workspaceId))
+      ) {
+        return textResult({
+          error: "invalid_reference",
+          message: `${input.subjectType} ${input.subjectId} does not exist in this workspace`,
+        });
       }
+
+      const occurredAt = input.occurredAt ? new Date(input.occurredAt) : new Date();
 
       const [inserted] = await db
         .insert(activities)
@@ -203,4 +214,3 @@ export function registerActivityTools(server: McpServer) {
     },
   );
 }
-

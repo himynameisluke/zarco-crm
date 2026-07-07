@@ -10,7 +10,7 @@ import { registerHighStakesTools } from "./tools/high-stakes";
 
 export const MCP_SERVER_INFO = {
   name: "zarco-crm",
-  version: "0.4.0",
+  version: "0.5.0",
 } as const;
 
 /**

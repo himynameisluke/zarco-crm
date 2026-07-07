@@ -4,9 +4,9 @@ import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 
 import { db } from "@/lib/db";
 import { tasks } from "@/lib/db/schema";
-import { getPrimaryWorkspaceIdForUser } from "@/lib/workspace/current";
 import { auditMcpWrite } from "../audit";
-import { getMcpContext, textResult } from "../context";
+import { requireMcpWorkspace, textResult } from "../context";
+import { entityInWorkspace } from "../scope";
 
 const SUBJECT_TYPES = ["contact", "organization", "deal", "project"] as const;
 
@@ -30,7 +30,7 @@ export function registerTaskTools(server: McpServer) {
       annotations: { destructiveHint: false, idempotentHint: false },
     },
     async (input, { authInfo }) => {
-      const { userId } = getMcpContext(authInfo);
+      const { userId, workspaceId } = await requireMcpWorkspace(authInfo);
 
       if ((input.subjectType && !input.subjectId) || (!input.subjectType && input.subjectId)) {
         return textResult({
@@ -39,9 +39,15 @@ export function registerTaskTools(server: McpServer) {
         });
       }
 
-      const workspaceId = await getPrimaryWorkspaceIdForUser(userId);
-      if (!workspaceId) {
-        throw new Error("User has no workspace; cannot create task");
+      if (
+        input.subjectType &&
+        input.subjectId &&
+        !(await entityInWorkspace(input.subjectType, input.subjectId, workspaceId))
+      ) {
+        return textResult({
+          error: "invalid_reference",
+          message: `${input.subjectType} ${input.subjectId} does not exist in this workspace`,
+        });
       }
 
       const [inserted] = await db
@@ -61,6 +67,7 @@ export function registerTaskTools(server: McpServer) {
 
       if (input.subjectType && input.subjectId) {
         await auditMcpWrite({
+          workspaceId,
           type: "note",
           subjectType: input.subjectType,
           subjectId: input.subjectId,
@@ -85,7 +92,7 @@ export function registerTaskTools(server: McpServer) {
       annotations: { destructiveHint: false, idempotentHint: true },
     },
     async ({ id }, { authInfo }) => {
-      const { userId } = getMcpContext(authInfo);
+      const { userId, workspaceId } = await requireMcpWorkspace(authInfo);
 
       const [updated] = await db
         .update(tasks)
@@ -94,7 +101,7 @@ export function registerTaskTools(server: McpServer) {
           completedAt: new Date(),
           updatedAt: new Date(),
         })
-        .where(eq(tasks.id, id))
+        .where(and(eq(tasks.id, id), eq(tasks.workspaceId, workspaceId)))
         .returning();
 
       if (!updated) {
@@ -103,6 +110,7 @@ export function registerTaskTools(server: McpServer) {
 
       if (updated.subjectType && updated.subjectId) {
         await auditMcpWrite({
+          workspaceId,
           type: "task_completed",
           subjectType: updated.subjectType,
           subjectId: updated.subjectId,
@@ -130,16 +138,14 @@ export function registerTaskTools(server: McpServer) {
       },
       annotations: { destructiveHint: false, idempotentHint: true },
     },
-    async ({
-      status,
-      dueWithinDays,
-      overdue,
-      subjectType,
-      subjectId,
-      limit,
-    }) => {
+    async (
+      { status, dueWithinDays, overdue, subjectType, subjectId, limit },
+      { authInfo },
+    ) => {
+      const { workspaceId } = await requireMcpWorkspace(authInfo);
       const now = new Date();
       const filters = [
+        eq(tasks.workspaceId, workspaceId),
         // If a specific status is requested, honour it. Otherwise default to
         // "not done" since open work is what callers usually want.
         status ? eq(tasks.status, status) : ne(tasks.status, "done"),
@@ -173,7 +179,7 @@ export function registerTaskTools(server: McpServer) {
           createdAt: tasks.createdAt,
         })
         .from(tasks)
-        .where(filters.length ? and(...filters) : undefined)
+        .where(and(...filters))
         // dueAt asc so the most pressing comes first; nulls sort last
         .orderBy(asc(tasks.dueAt), desc(tasks.createdAt))
         .limit(limit);

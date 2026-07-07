@@ -1,11 +1,13 @@
 import type { AuthInfo } from "@modelcontextprotocol/sdk/server/auth/types.js";
 
+import { getPrimaryWorkspaceIdForUser } from "@/lib/workspace/current";
+
 /**
  * Extracts the bound user id from the MCP request's auth context.
  *
  * The auth bridge in /mcp/route.ts stores the verified Zarco user id in
  * AuthInfo.extra.userId. Every tool that touches the DB calls this helper
- * so attribution and (future) scoping happen in one place.
+ * so attribution and scoping happen in one place.
  */
 export type McpAuthContext = {
   userId: string;
@@ -24,6 +26,29 @@ export function getMcpContext(authInfo: AuthInfo | undefined): McpAuthContext {
     userId,
     clientId: authInfo.clientId,
   };
+}
+
+export type McpWorkspaceContext = McpAuthContext & { workspaceId: string };
+
+/**
+ * Resolves the caller AND the workspace every query must be scoped to.
+ *
+ * MCP can't see the web UI's `currentWorkspaceId` cookie, so we bind to the
+ * user's primary (earliest-created) workspace. CRITICAL: our Drizzle client
+ * connects as the Postgres role, which BYPASSES row-level security — so RLS
+ * is not a backstop here. Every tool MUST filter its queries by this
+ * workspaceId or it will read/write across workspace (tenant) boundaries.
+ * Going through this helper makes that scoping unavoidable.
+ */
+export async function requireMcpWorkspace(
+  authInfo: AuthInfo | undefined,
+): Promise<McpWorkspaceContext> {
+  const ctx = getMcpContext(authInfo);
+  const workspaceId = await getPrimaryWorkspaceIdForUser(ctx.userId);
+  if (!workspaceId) {
+    throw new Error("User has no workspace; cannot perform this action");
+  }
+  return { ...ctx, workspaceId };
 }
 
 /**

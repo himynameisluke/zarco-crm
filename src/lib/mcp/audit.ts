@@ -1,6 +1,5 @@
 import { db } from "@/lib/db";
 import { activities } from "@/lib/db/schema";
-import { getPrimaryWorkspaceIdForUser } from "@/lib/workspace/current";
 
 type SubjectType = "contact" | "organization" | "deal" | "project";
 
@@ -26,8 +25,12 @@ type ActivityType =
  * Errors from the audit insert are caught and logged but never propagate —
  * a failed audit insert should not roll back the underlying write. The
  * write succeeded; we just lost some history.
+ *
+ * The caller passes the resolved workspaceId (from requireMcpWorkspace) so the
+ * audit row lands in the same workspace as the write it describes.
  */
 export async function auditMcpWrite({
+  workspaceId,
   type,
   subjectType,
   subjectId,
@@ -36,6 +39,7 @@ export async function auditMcpWrite({
   userId,
   metadata,
 }: {
+  workspaceId: string;
   type: ActivityType;
   subjectType: SubjectType;
   subjectId: string;
@@ -45,13 +49,6 @@ export async function auditMcpWrite({
   metadata?: Record<string, unknown>;
 }): Promise<void> {
   try {
-    const workspaceId = await getPrimaryWorkspaceIdForUser(userId);
-    if (!workspaceId) {
-      console.error(
-        "[mcp.audit] skipping audit insert — user has no workspace",
-      );
-      return;
-    }
     await db.insert(activities).values({
       workspaceId,
       type,

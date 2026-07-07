@@ -11,9 +11,9 @@ import {
   projects,
   quotes,
 } from "@/lib/db/schema";
-import { getPrimaryWorkspaceIdForUser } from "@/lib/workspace/current";
 import { auditMcpWrite } from "../audit";
-import { getMcpContext, textResult } from "../context";
+import { requireMcpWorkspace, textResult } from "../context";
+import { entityInWorkspace } from "../scope";
 
 const STAGE_VALUES = [
   "lead",
@@ -45,8 +45,11 @@ export function registerDealTools(server: McpServer) {
       annotations: { readOnlyHint: true, idempotentHint: true },
     },
     async ({ query, stage }, { authInfo }) => {
-      getMcpContext(authInfo);
-      const conditions = [ilike(deals.name, `%${query}%`)];
+      const { workspaceId } = await requireMcpWorkspace(authInfo);
+      const conditions = [
+        eq(deals.workspaceId, workspaceId),
+        ilike(deals.name, `%${query}%`),
+      ];
       if (stage) conditions.push(eq(deals.stage, stage));
 
       const rows = await db
@@ -61,7 +64,13 @@ export function registerDealTools(server: McpServer) {
           organizationName: organizations.name,
         })
         .from(deals)
-        .leftJoin(organizations, eq(deals.organizationId, organizations.id))
+        .leftJoin(
+          organizations,
+          and(
+            eq(deals.organizationId, organizations.id),
+            eq(organizations.workspaceId, workspaceId),
+          ),
+        )
         .where(and(...conditions))
         .orderBy(desc(deals.updatedAt))
         .limit(20);
@@ -80,7 +89,7 @@ export function registerDealTools(server: McpServer) {
       annotations: { readOnlyHint: true, idempotentHint: true },
     },
     async ({ id }, { authInfo }) => {
-      getMcpContext(authInfo);
+      const { workspaceId } = await requireMcpWorkspace(authInfo);
 
       const [deal] = await db
         .select({
@@ -98,8 +107,14 @@ export function registerDealTools(server: McpServer) {
           primaryContactId: deals.primaryContactId,
         })
         .from(deals)
-        .leftJoin(organizations, eq(deals.organizationId, organizations.id))
-        .where(eq(deals.id, id))
+        .leftJoin(
+          organizations,
+          and(
+            eq(deals.organizationId, organizations.id),
+            eq(organizations.workspaceId, workspaceId),
+          ),
+        )
+        .where(and(eq(deals.id, id), eq(deals.workspaceId, workspaceId)))
         .limit(1);
 
       if (!deal) {
@@ -118,7 +133,12 @@ export function registerDealTools(server: McpServer) {
                   title: contacts.title,
                 })
                 .from(contacts)
-                .where(eq(contacts.id, deal.primaryContactId))
+                .where(
+                  and(
+                    eq(contacts.id, deal.primaryContactId),
+                    eq(contacts.workspaceId, workspaceId),
+                  ),
+                )
                 .limit(1)
                 .then((rows) => rows[0] ?? null)
             : Promise.resolve(null),
@@ -134,6 +154,7 @@ export function registerDealTools(server: McpServer) {
             .from(activities)
             .where(
               and(
+                eq(activities.workspaceId, workspaceId),
                 eq(activities.subjectType, "deal"),
                 eq(activities.subjectId, id),
               ),
@@ -149,7 +170,9 @@ export function registerDealTools(server: McpServer) {
               endDate: projects.endDate,
             })
             .from(projects)
-            .where(eq(projects.dealId, id))
+            .where(
+              and(eq(projects.workspaceId, workspaceId), eq(projects.dealId, id)),
+            )
             .orderBy(desc(projects.updatedAt)),
           db
             .select({
@@ -163,7 +186,7 @@ export function registerDealTools(server: McpServer) {
               acceptedAt: quotes.acceptedAt,
             })
             .from(quotes)
-            .where(eq(quotes.dealId, id))
+            .where(and(eq(quotes.workspaceId, workspaceId), eq(quotes.dealId, id)))
             .orderBy(desc(quotes.createdAt)),
         ]);
 
@@ -198,11 +221,27 @@ export function registerDealTools(server: McpServer) {
       annotations: { destructiveHint: false, idempotentHint: false },
     },
     async (input, { authInfo }) => {
-      const { userId } = getMcpContext(authInfo);
-      const workspaceId = await getPrimaryWorkspaceIdForUser(userId);
-      if (!workspaceId) {
-        throw new Error("User has no workspace; cannot create deal");
+      const { userId, workspaceId } = await requireMcpWorkspace(authInfo);
+
+      if (
+        input.organizationId &&
+        !(await entityInWorkspace("organization", input.organizationId, workspaceId))
+      ) {
+        return textResult({
+          error: "invalid_reference",
+          message: "organizationId does not exist in this workspace",
+        });
       }
+      if (
+        input.primaryContactId &&
+        !(await entityInWorkspace("contact", input.primaryContactId, workspaceId))
+      ) {
+        return textResult({
+          error: "invalid_reference",
+          message: "primaryContactId does not exist in this workspace",
+        });
+      }
+
       const [inserted] = await db
         .insert(deals)
         .values({
@@ -220,6 +259,7 @@ export function registerDealTools(server: McpServer) {
         .returning();
 
       await auditMcpWrite({
+        workspaceId,
         type: "note",
         subjectType: "deal",
         subjectId: inserted.id,
@@ -245,12 +285,12 @@ export function registerDealTools(server: McpServer) {
       annotations: { destructiveHint: false, idempotentHint: true },
     },
     async ({ id, stage, reason }, { authInfo }) => {
-      const { userId } = getMcpContext(authInfo);
+      const { userId, workspaceId } = await requireMcpWorkspace(authInfo);
 
       const [before] = await db
         .select({ name: deals.name, stage: deals.stage })
         .from(deals)
-        .where(eq(deals.id, id))
+        .where(and(eq(deals.id, id), eq(deals.workspaceId, workspaceId)))
         .limit(1);
 
       if (!before) {
@@ -264,11 +304,12 @@ export function registerDealTools(server: McpServer) {
       const [updated] = await db
         .update(deals)
         .set({ stage, updatedAt: new Date() })
-        .where(eq(deals.id, id))
+        .where(and(eq(deals.id, id), eq(deals.workspaceId, workspaceId)))
         .returning();
 
       const base = `Deal "${before.name}" moved from ${before.stage} to ${stage}`;
       await auditMcpWrite({
+        workspaceId,
         type: "status_change",
         subjectType: "deal",
         subjectId: id,
@@ -304,7 +345,26 @@ export function registerDealTools(server: McpServer) {
       annotations: { destructiveHint: false, idempotentHint: true },
     },
     async ({ id, ...patch }, { authInfo }) => {
-      const { userId } = getMcpContext(authInfo);
+      const { userId, workspaceId } = await requireMcpWorkspace(authInfo);
+
+      if (
+        patch.organizationId &&
+        !(await entityInWorkspace("organization", patch.organizationId, workspaceId))
+      ) {
+        return textResult({
+          error: "invalid_reference",
+          message: "organizationId does not exist in this workspace",
+        });
+      }
+      if (
+        patch.primaryContactId &&
+        !(await entityInWorkspace("contact", patch.primaryContactId, workspaceId))
+      ) {
+        return textResult({
+          error: "invalid_reference",
+          message: "primaryContactId does not exist in this workspace",
+        });
+      }
 
       const updateValues: Record<string, unknown> = { updatedAt: new Date() };
       if (patch.name !== undefined) updateValues.name = patch.name;
@@ -320,7 +380,7 @@ export function registerDealTools(server: McpServer) {
       const [updated] = await db
         .update(deals)
         .set(updateValues)
-        .where(eq(deals.id, id))
+        .where(and(eq(deals.id, id), eq(deals.workspaceId, workspaceId)))
         .returning();
 
       if (!updated) return textResult({ error: "not_found", id });
@@ -330,6 +390,7 @@ export function registerDealTools(server: McpServer) {
       );
 
       await auditMcpWrite({
+        workspaceId,
         type: "note",
         subjectType: "deal",
         subjectId: id,
@@ -349,7 +410,7 @@ export function registerDealTools(server: McpServer) {
     "list_deals",
     {
       description:
-        "List deals with optional filters. No query string required — use this to scan the whole pipeline (unlike find_deal). Filters: stage, type, dealsCreatedSinceDays (e.g. 7 = last week). Default limit 50, max 200. Ordered by updated_at desc.",
+        "List deals with optional filters. No query string required — use this to scan the whole pipeline (unlike find_deal). Filters: stage, type, createdSinceDays (e.g. 7 = last week). Default limit 50, max 200. Ordered by updated_at desc.",
       inputSchema: {
         stage: z.enum(STAGE_VALUES).optional(),
         type: z.enum(TYPE_VALUES).optional(),
@@ -358,8 +419,10 @@ export function registerDealTools(server: McpServer) {
       },
       annotations: { destructiveHint: false, idempotentHint: true },
     },
-    async ({ stage, type, createdSinceDays, limit }) => {
+    async ({ stage, type, createdSinceDays, limit }, { authInfo }) => {
+      const { workspaceId } = await requireMcpWorkspace(authInfo);
       const filters = [
+        eq(deals.workspaceId, workspaceId),
         stage ? eq(deals.stage, stage) : undefined,
         type ? eq(deals.type, type) : undefined,
         createdSinceDays
@@ -386,8 +449,14 @@ export function registerDealTools(server: McpServer) {
           updatedAt: deals.updatedAt,
         })
         .from(deals)
-        .leftJoin(organizations, eq(deals.organizationId, organizations.id))
-        .where(filters.length ? and(...filters) : undefined)
+        .leftJoin(
+          organizations,
+          and(
+            eq(deals.organizationId, organizations.id),
+            eq(organizations.workspaceId, workspaceId),
+          ),
+        )
+        .where(and(...filters))
         .orderBy(desc(deals.updatedAt))
         .limit(limit);
 
@@ -403,7 +472,8 @@ export function registerDealTools(server: McpServer) {
       inputSchema: {},
       annotations: { destructiveHint: false, idempotentHint: true },
     },
-    async () => {
+    async (_input, { authInfo }) => {
+      const { workspaceId } = await requireMcpWorkspace(authInfo);
       const breakdown = await db
         .select({
           stage: deals.stage,
@@ -411,6 +481,7 @@ export function registerDealTools(server: McpServer) {
           value: sql<number>`coalesce(sum(${deals.valuePence}), 0)::bigint`,
         })
         .from(deals)
+        .where(eq(deals.workspaceId, workspaceId))
         .groupBy(deals.stage);
 
       const weights: Record<(typeof STAGE_VALUES)[number], number> = {
@@ -445,6 +516,7 @@ export function registerDealTools(server: McpServer) {
         .from(deals)
         .where(
           and(
+            eq(deals.workspaceId, workspaceId),
             gte(deals.updatedAt, ninetyDaysAgo),
             sql`${deals.stage} in ('won', 'lost')`,
           ),

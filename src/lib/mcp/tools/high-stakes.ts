@@ -1,11 +1,12 @@
 import { z } from "zod";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 
 import { db } from "@/lib/db";
 import { contacts, deals, organizations, quotes } from "@/lib/db/schema";
 import { auditMcpWrite } from "../audit";
-import { getMcpContext, textResult } from "../context";
+import { requireMcpWorkspace, textResult } from "../context";
+import { entityInWorkspace } from "../scope";
 
 const CONFIRM_REQUIRED_NOTE =
   "DESTRUCTIVE — you MUST confirm with the user in plain language before calling with confirm=true. The tool will refuse without explicit confirm=true.";
@@ -22,13 +23,12 @@ const SEND_REQUIRED_NOTE =
  * MCP elicitation (mcp/elicitation) would be a cleaner mechanism, but client
  * support is patchy as of this writing — the confirm-param pattern works in
  * every client today and keeps the human-in-the-loop step honest.
+ *
+ * Every query is scoped to the caller's workspace (requireMcpWorkspace): a
+ * delete/send can only touch rows in the workspace the token is bound to.
  */
 export function registerHighStakesTools(server: McpServer) {
   // ── Deletes ───────────────────────────────────────────────────────────
-
-  function deletionResult(error?: string) {
-    return error ? textResult({ error }) : null;
-  }
 
   server.registerTool(
     "delete_contact",
@@ -45,7 +45,7 @@ export function registerHighStakesTools(server: McpServer) {
       annotations: { destructiveHint: true, idempotentHint: true },
     },
     async ({ id, confirm }, { authInfo }) => {
-      const { userId } = getMcpContext(authInfo);
+      const { userId, workspaceId } = await requireMcpWorkspace(authInfo);
       if (!confirm) {
         return textResult({
           error: "confirm_required",
@@ -55,20 +55,19 @@ export function registerHighStakesTools(server: McpServer) {
       const [target] = await db
         .select({ firstName: contacts.firstName, lastName: contacts.lastName })
         .from(contacts)
-        .where(eq(contacts.id, id))
+        .where(and(eq(contacts.id, id), eq(contacts.workspaceId, workspaceId)))
         .limit(1);
       if (!target) {
         return textResult({ error: "not_found", id });
       }
       const name =
         [target.firstName, target.lastName].filter(Boolean).join(" ") || "contact";
-      await db.delete(contacts).where(eq(contacts.id, id));
-      // Audit lands on the organization timeline if there is one — but for a
-      // bare delete we record it in a separate system activity. Skipping the
-      // entity audit because the entity no longer exists. The MCP-tagged
-      // audit appears in the deleted-from-list-view sense via /activity feed
-      // when we add a deletes-feed later.
-      return deletionResult() ?? textResult({ deleted: { id, name }, by: userId });
+      await db
+        .delete(contacts)
+        .where(and(eq(contacts.id, id), eq(contacts.workspaceId, workspaceId)));
+      // Audit is skipped for a bare delete: the entity no longer exists to
+      // attach a timeline row to. A deletes feed can surface these later.
+      return textResult({ deleted: { id, name }, by: userId });
     },
   );
 
@@ -83,7 +82,7 @@ export function registerHighStakesTools(server: McpServer) {
       annotations: { destructiveHint: true, idempotentHint: true },
     },
     async ({ id, confirm }, { authInfo }) => {
-      const { userId } = getMcpContext(authInfo);
+      const { userId, workspaceId } = await requireMcpWorkspace(authInfo);
       if (!confirm) {
         return textResult({
           error: "confirm_required",
@@ -93,12 +92,18 @@ export function registerHighStakesTools(server: McpServer) {
       const [target] = await db
         .select({ name: organizations.name })
         .from(organizations)
-        .where(eq(organizations.id, id))
+        .where(
+          and(eq(organizations.id, id), eq(organizations.workspaceId, workspaceId)),
+        )
         .limit(1);
       if (!target) {
         return textResult({ error: "not_found", id });
       }
-      await db.delete(organizations).where(eq(organizations.id, id));
+      await db
+        .delete(organizations)
+        .where(
+          and(eq(organizations.id, id), eq(organizations.workspaceId, workspaceId)),
+        );
       return textResult({ deleted: { id, name: target.name }, by: userId });
     },
   );
@@ -114,7 +119,7 @@ export function registerHighStakesTools(server: McpServer) {
       annotations: { destructiveHint: true, idempotentHint: true },
     },
     async ({ id, confirm }, { authInfo }) => {
-      const { userId } = getMcpContext(authInfo);
+      const { userId, workspaceId } = await requireMcpWorkspace(authInfo);
       if (!confirm) {
         return textResult({
           error: "confirm_required",
@@ -124,12 +129,14 @@ export function registerHighStakesTools(server: McpServer) {
       const [target] = await db
         .select({ name: deals.name })
         .from(deals)
-        .where(eq(deals.id, id))
+        .where(and(eq(deals.id, id), eq(deals.workspaceId, workspaceId)))
         .limit(1);
       if (!target) {
         return textResult({ error: "not_found", id });
       }
-      await db.delete(deals).where(eq(deals.id, id));
+      await db
+        .delete(deals)
+        .where(and(eq(deals.id, id), eq(deals.workspaceId, workspaceId)));
       return textResult({ deleted: { id, name: target.name }, by: userId });
     },
   );
@@ -156,7 +163,7 @@ export function registerHighStakesTools(server: McpServer) {
       annotations: { destructiveHint: false, idempotentHint: false },
     },
     async (input, { authInfo }) => {
-      const { userId } = getMcpContext(authInfo);
+      const { userId, workspaceId } = await requireMcpWorkspace(authInfo);
       if (!input.confirm) {
         return textResult({
           error: "confirm_required",
@@ -165,11 +172,22 @@ export function registerHighStakesTools(server: McpServer) {
         });
       }
 
+      if (
+        input.contactId &&
+        !(await entityInWorkspace("contact", input.contactId, workspaceId))
+      ) {
+        return textResult({
+          error: "invalid_reference",
+          message: "contactId does not exist in this workspace",
+        });
+      }
+
       // STUB: Resend not wired yet. Record intent on the contact's timeline
       // (if a contactId was given) so the user can see "Claude tried to send
       // X" in the activity feed.
       if (input.contactId) {
         await auditMcpWrite({
+          workspaceId,
           type: "email",
           subjectType: "contact",
           subjectId: input.contactId,
@@ -203,7 +221,7 @@ export function registerHighStakesTools(server: McpServer) {
       annotations: { destructiveHint: false, idempotentHint: true },
     },
     async ({ quoteId, confirm }, { authInfo }) => {
-      const { userId } = getMcpContext(authInfo);
+      const { userId, workspaceId } = await requireMcpWorkspace(authInfo);
       if (!confirm) {
         return textResult({
           error: "confirm_required",
@@ -222,7 +240,7 @@ export function registerHighStakesTools(server: McpServer) {
           dealId: quotes.dealId,
         })
         .from(quotes)
-        .where(eq(quotes.id, quoteId))
+        .where(and(eq(quotes.id, quoteId), eq(quotes.workspaceId, workspaceId)))
         .limit(1);
 
       if (!quote) {
@@ -238,10 +256,11 @@ export function registerHighStakesTools(server: McpServer) {
       await db
         .update(quotes)
         .set({ status: "sent", sentAt: new Date(), updatedAt: new Date() })
-        .where(eq(quotes.id, quoteId));
+        .where(and(eq(quotes.id, quoteId), eq(quotes.workspaceId, workspaceId)));
 
       if (quote.dealId) {
         await auditMcpWrite({
+          workspaceId,
           type: "quote_sent",
           subjectType: "deal",
           subjectId: quote.dealId,

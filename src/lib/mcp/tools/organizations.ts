@@ -4,9 +4,8 @@ import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 
 import { db } from "@/lib/db";
 import { contacts, deals, organizations } from "@/lib/db/schema";
-import { getPrimaryWorkspaceIdForUser } from "@/lib/workspace/current";
 import { auditMcpWrite } from "../audit";
-import { getMcpContext, textResult } from "../context";
+import { requireMcpWorkspace, textResult } from "../context";
 
 function nullable(value: string | undefined | null): string | null {
   if (!value) return null;
@@ -29,7 +28,7 @@ export function registerOrganizationTools(server: McpServer) {
       annotations: { readOnlyHint: true, idempotentHint: true },
     },
     async ({ query }, { authInfo }) => {
-      getMcpContext(authInfo);
+      const { workspaceId } = await requireMcpWorkspace(authInfo);
       const pattern = `%${query}%`;
       const rows = await db
         .select({
@@ -40,9 +39,12 @@ export function registerOrganizationTools(server: McpServer) {
         })
         .from(organizations)
         .where(
-          or(
-            ilike(organizations.name, pattern),
-            ilike(organizations.domain, pattern),
+          and(
+            eq(organizations.workspaceId, workspaceId),
+            or(
+              ilike(organizations.name, pattern),
+              ilike(organizations.domain, pattern),
+            ),
           ),
         )
         .orderBy(desc(organizations.updatedAt))
@@ -62,12 +64,14 @@ export function registerOrganizationTools(server: McpServer) {
       annotations: { readOnlyHint: true, idempotentHint: true },
     },
     async ({ id }, { authInfo }) => {
-      getMcpContext(authInfo);
+      const { workspaceId } = await requireMcpWorkspace(authInfo);
 
       const [org] = await db
         .select()
         .from(organizations)
-        .where(eq(organizations.id, id))
+        .where(
+          and(eq(organizations.id, id), eq(organizations.workspaceId, workspaceId)),
+        )
         .limit(1);
 
       if (!org) {
@@ -84,7 +88,12 @@ export function registerOrganizationTools(server: McpServer) {
             title: contacts.title,
           })
           .from(contacts)
-          .where(eq(contacts.organizationId, id))
+          .where(
+            and(
+              eq(contacts.workspaceId, workspaceId),
+              eq(contacts.organizationId, id),
+            ),
+          )
           .orderBy(desc(contacts.updatedAt))
           .limit(50),
         db
@@ -98,7 +107,9 @@ export function registerOrganizationTools(server: McpServer) {
             closeDate: deals.closeDate,
           })
           .from(deals)
-          .where(eq(deals.organizationId, id))
+          .where(
+            and(eq(deals.workspaceId, workspaceId), eq(deals.organizationId, id)),
+          )
           .orderBy(desc(deals.updatedAt))
           .limit(50),
       ]);
@@ -127,11 +138,7 @@ export function registerOrganizationTools(server: McpServer) {
       annotations: { destructiveHint: false, idempotentHint: false },
     },
     async (input, { authInfo }) => {
-      const { userId } = getMcpContext(authInfo);
-      const workspaceId = await getPrimaryWorkspaceIdForUser(userId);
-      if (!workspaceId) {
-        throw new Error("User has no workspace; cannot create organization");
-      }
+      const { userId, workspaceId } = await requireMcpWorkspace(authInfo);
       const [inserted] = await db
         .insert(organizations)
         .values({
@@ -147,6 +154,7 @@ export function registerOrganizationTools(server: McpServer) {
         .returning();
 
       await auditMcpWrite({
+        workspaceId,
         type: "note",
         subjectType: "organization",
         subjectId: inserted.id,
@@ -175,7 +183,7 @@ export function registerOrganizationTools(server: McpServer) {
       annotations: { destructiveHint: false, idempotentHint: true },
     },
     async ({ id, ...patch }, { authInfo }) => {
-      const { userId } = getMcpContext(authInfo);
+      const { userId, workspaceId } = await requireMcpWorkspace(authInfo);
 
       const updateValues: Record<string, unknown> = { updatedAt: new Date() };
       if (patch.name !== undefined) updateValues.name = patch.name;
@@ -190,7 +198,9 @@ export function registerOrganizationTools(server: McpServer) {
       const [updated] = await db
         .update(organizations)
         .set(updateValues)
-        .where(eq(organizations.id, id))
+        .where(
+          and(eq(organizations.id, id), eq(organizations.workspaceId, workspaceId)),
+        )
         .returning();
 
       if (!updated) return textResult({ error: "not_found", id });
@@ -200,6 +210,7 @@ export function registerOrganizationTools(server: McpServer) {
       );
 
       await auditMcpWrite({
+        workspaceId,
         type: "note",
         subjectType: "organization",
         subjectId: id,
@@ -227,8 +238,10 @@ export function registerOrganizationTools(server: McpServer) {
       },
       annotations: { destructiveHint: false, idempotentHint: true },
     },
-    async ({ industry, createdSinceDays, limit }) => {
+    async ({ industry, createdSinceDays, limit }, { authInfo }) => {
+      const { workspaceId } = await requireMcpWorkspace(authInfo);
       const filters = [
+        eq(organizations.workspaceId, workspaceId),
         industry ? ilike(organizations.industry, `%${industry}%`) : undefined,
         createdSinceDays
           ? gte(
@@ -249,7 +262,7 @@ export function registerOrganizationTools(server: McpServer) {
           updatedAt: organizations.updatedAt,
         })
         .from(organizations)
-        .where(filters.length ? and(...filters) : undefined)
+        .where(and(...filters))
         .orderBy(desc(organizations.updatedAt))
         .limit(limit);
 
