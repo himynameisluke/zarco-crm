@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { desc, eq } from "drizzle-orm";
-import { Briefcase, Filter, Plus, Sparkles, SquareKanban } from "lucide-react";
+import { Plus, Sparkles, SquareKanban } from "lucide-react";
 
 import { db } from "@/lib/db";
 import { contacts, deals, organizations } from "@/lib/db/schema";
@@ -10,10 +10,35 @@ import { Topbar } from "@/components/nav/topbar";
 import { EmptyState } from "@/components/empty-state";
 import { KanbanBoard } from "@/components/deals/kanban-board";
 import { formatMoney } from "@/lib/format";
+import {
+  DEAL_STAGES,
+  DEAL_STAGE_LABELS,
+  type DealStage,
+} from "./schema";
 
-export default async function DealsPage() {
-  await requireUser();
+function isDealStage(v: string | undefined): v is DealStage {
+  return typeof v === "string" && (DEAL_STAGES as readonly string[]).includes(v);
+}
+
+/** Builds a /deals href preserving the other filter's state. */
+function filterHref(stage: DealStage | null, owner: "me" | null) {
+  const params = new URLSearchParams();
+  if (stage) params.set("stage", stage);
+  if (owner) params.set("owner", owner);
+  const qs = params.toString();
+  return qs ? `/deals?${qs}` : "/deals";
+}
+
+export default async function DealsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ stage?: string; owner?: string }>;
+}) {
+  const user = await requireUser();
   const workspace = await requireCurrentWorkspace();
+  const sp = await searchParams;
+  const stageFilter = isDealStage(sp.stage) ? sp.stage : null;
+  const ownerFilter = sp.owner === "me" ? ("me" as const) : null;
 
   const rows = await db
     .select({
@@ -25,6 +50,8 @@ export default async function DealsPage() {
       currency: deals.currency,
       closeDate: deals.closeDate,
       updatedAt: deals.updatedAt,
+      stageChangedAt: deals.stageChangedAt,
+      ownerId: deals.ownerId,
       organizationName: organizations.name,
       primaryContactFirstName: contacts.firstName,
       primaryContactLastName: contacts.lastName,
@@ -36,36 +63,47 @@ export default async function DealsPage() {
     .orderBy(desc(deals.updatedAt))
     .limit(500);
 
-  const openDeals = rows.filter((d) => d.stage !== "won" && d.stage !== "lost");
+  // Filters applied in JS — the whole board is already loaded (≤500 rows)
+  // and this keeps column counts/sums consistent with what's shown.
+  const filtered = rows.filter(
+    (d) =>
+      (!stageFilter || d.stage === stageFilter) &&
+      (!ownerFilter || d.ownerId === user.id),
+  );
+
+  const openDeals = filtered.filter(
+    (d) => d.stage !== "won" && d.stage !== "lost",
+  );
   const totalPipeline = openDeals.reduce(
     (sum, d) => sum + (d.valuePence ?? 0),
     0,
   );
 
+  const chipStyle = (active: boolean): React.CSSProperties => ({
+    padding: "3px 10px",
+    borderRadius: 999,
+    fontSize: 11,
+    textDecoration: "none",
+    border: `1px solid ${active ? "var(--magenta)" : "var(--hairline)"}`,
+    color: active ? "var(--magenta)" : "var(--ink-3)",
+    background: active ? "var(--paper-3)" : "transparent",
+    whiteSpace: "nowrap" as const,
+  });
+
   return (
     <>
       <Topbar
         crumbs={[{ icon: SquareKanban, label: "Deals" }]}
-        tabs={[
-          { id: "pipeline", label: "Pipeline", icon: SquareKanban, active: true },
-          { id: "list", label: "List", icon: Briefcase },
-        ]}
         actions={
-          <>
-            <button type="button" className="btn">
-              <Filter size={13} />
-              Filter
-            </button>
-            <Link href="/deals/new" className="btn btn-primary">
-              <Plus size={13} />
-              New deal
-            </Link>
-          </>
+          <Link href="/deals/new" className="btn btn-primary">
+            <Plus size={13} />
+            New deal
+          </Link>
         }
       />
 
       <main className="screen flex flex-1 flex-col" style={{ minWidth: 0 }}>
-        {/* Summary toolbar */}
+        {/* Summary + filter toolbar */}
         <div
           style={{
             display: "flex",
@@ -75,17 +113,63 @@ export default async function DealsPage() {
             borderBottom: "1px solid var(--hairline)",
             fontSize: 11.5,
             color: "var(--ink-3)",
+            flexWrap: "wrap",
           }}
         >
           <span>
             <span className="t-mono" style={{ color: "var(--ink-2)" }}>
-              {rows.length}
+              {filtered.length}
             </span>{" "}
-            deal{rows.length === 1 ? "" : "s"} · open pipeline{" "}
+            deal{filtered.length === 1 ? "" : "s"} · open pipeline{" "}
             <span className="t-num" style={{ color: "var(--ink)" }}>
               {formatMoney(totalPipeline)}
             </span>
           </span>
+
+          <span
+            style={{
+              display: "inline-flex",
+              alignItems: "center",
+              gap: 6,
+              marginLeft: 8,
+            }}
+          >
+            <Link
+              href={filterHref(stageFilter, null)}
+              style={chipStyle(!ownerFilter)}
+            >
+              All deals
+            </Link>
+            <Link
+              href={filterHref(stageFilter, "me")}
+              style={chipStyle(ownerFilter === "me")}
+            >
+              My deals
+            </Link>
+          </span>
+
+          <span
+            style={{
+              display: "inline-flex",
+              alignItems: "center",
+              gap: 6,
+              overflowX: "auto",
+            }}
+          >
+            <Link href={filterHref(null, ownerFilter)} style={chipStyle(!stageFilter)}>
+              All stages
+            </Link>
+            {DEAL_STAGES.map((s) => (
+              <Link
+                key={s}
+                href={filterHref(s, ownerFilter)}
+                style={chipStyle(stageFilter === s)}
+              >
+                {DEAL_STAGE_LABELS[s]}
+              </Link>
+            ))}
+          </span>
+
           <div style={{ flex: 1 }} />
           <span
             style={{
@@ -99,22 +183,34 @@ export default async function DealsPage() {
           </span>
         </div>
 
-        {rows.length === 0 ? (
+        {filtered.length === 0 ? (
           <div style={{ padding: 32 }}>
             <EmptyState
               icon={SquareKanban}
-              title="No deals yet"
-              description="Create your first deal to start building your pipeline."
+              title={
+                rows.length === 0 ? "No deals yet" : "No deals match this filter"
+              }
+              description={
+                rows.length === 0
+                  ? "Create your first deal to start building your pipeline."
+                  : "Try clearing the stage or owner filter."
+              }
               action={
-                <Link href="/deals/new" className="btn btn-primary">
-                  <Plus size={13} />
-                  New deal
-                </Link>
+                rows.length === 0 ? (
+                  <Link href="/deals/new" className="btn btn-primary">
+                    <Plus size={13} />
+                    New deal
+                  </Link>
+                ) : (
+                  <Link href="/deals" className="btn">
+                    Clear filters
+                  </Link>
+                )
               }
             />
           </div>
         ) : (
-          <KanbanBoard deals={rows} />
+          <KanbanBoard deals={filtered} visibleStages={stageFilter ? [stageFilter] : undefined} />
         )}
 
         {/* Days-in-stage legend */}

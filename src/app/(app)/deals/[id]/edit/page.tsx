@@ -6,6 +6,7 @@ import { db } from "@/lib/db";
 import { contacts, deals, organizations } from "@/lib/db/schema";
 import { requireUser } from "@/lib/auth";
 import { requireCurrentWorkspace } from "@/lib/workspace/current";
+import { getWorkspaceMembers } from "@/lib/workspace/members";
 import { Topbar } from "@/components/nav/topbar";
 import { DealForm } from "@/components/deals/deal-form";
 import { updateDeal } from "../../actions";
@@ -20,11 +21,11 @@ export default async function EditDealPage({
 }: {
   params: Promise<{ id: string }>;
 }) {
-  await requireUser();
+  const user = await requireUser();
   const workspace = await requireCurrentWorkspace();
   const { id } = await params;
 
-  const [deal, orgOptions, contactRows] = await Promise.all([
+  const [deal, orgOptions, contactRows, members] = await Promise.all([
     db
       .select()
       .from(deals)
@@ -48,6 +49,7 @@ export default async function EditDealPage({
       .where(eq(contacts.workspaceId, workspace.id))
       .orderBy(desc(contacts.updatedAt))
       .limit(200),
+    getWorkspaceMembers(workspace.id),
   ]);
 
   if (!deal) {
@@ -75,6 +77,8 @@ export default async function EditDealPage({
             defaultValues={deal}
             organizationOptions={orgOptions}
             contactOptions={contactOptions}
+            memberOptions={members.map((m) => ({ id: m.id, name: m.name }))}
+            currentUserId={user.id}
             submitLabel="Save changes"
             cancelHref={`/deals/${id}`}
           />

@@ -14,6 +14,7 @@ import {
 import { auditMcpWrite } from "../audit";
 import { requireMcpWorkspace, textResult } from "../context";
 import { entityInWorkspace } from "../scope";
+import { stageTransitionValues } from "@/lib/deals/stage";
 
 const STAGE_VALUES = [
   "lead",
@@ -100,6 +101,8 @@ export function registerDealTools(server: McpServer) {
           valuePence: deals.valuePence,
           currency: deals.currency,
           closeDate: deals.closeDate,
+          lostReason: deals.lostReason,
+          stageChangedAt: deals.stageChangedAt,
           createdAt: deals.createdAt,
           updatedAt: deals.updatedAt,
           organizationId: deals.organizationId,
@@ -301,9 +304,11 @@ export function registerDealTools(server: McpServer) {
         return textResult({ unchanged: { id, stage } });
       }
 
+      // Shared transition semantics with the web app: stamps stageChangedAt,
+      // stamps closeDate on won/lost, records/clears lostReason.
       const [updated] = await db
         .update(deals)
-        .set({ stage, updatedAt: new Date() })
+        .set(stageTransitionValues(stage, reason ?? null))
         .where(and(eq(deals.id, id), eq(deals.workspaceId, workspaceId)))
         .returning();
 

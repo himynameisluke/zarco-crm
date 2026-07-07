@@ -6,7 +6,7 @@ import { and, eq, sql } from "drizzle-orm";
 import { z } from "zod";
 
 import { db } from "@/lib/db";
-import { quoteLineItems, quotes } from "@/lib/db/schema";
+import { activities, quoteLineItems, quotes } from "@/lib/db/schema";
 import { requireUser } from "@/lib/auth";
 import { requireCurrentWorkspace } from "@/lib/workspace/current";
 import { entityInWorkspace } from "@/lib/mcp/scope";
@@ -221,15 +221,51 @@ export async function deleteQuote(id: string) {
 
 /**
  * Marks the quote as sent (status + sentAt). Email send via Resend wires
- * up later — for now this just transitions state so the public link can
- * be copy-pasted manually.
+ * up later — for now this transitions state so the public link can be
+ * copy-pasted manually. NOTE: 'sent' is what makes the public /q/[token]
+ * page + PDF live, so this is effectively "publish".
+ *
+ * Draft-only (matches the MCP send_quote guard): re-sending an accepted or
+ * declined quote would overwrite sentAt and reopen a decided quote.
  */
 export async function markQuoteSent(id: string) {
-  await requireUser();
+  const user = await requireUser();
   const workspace = await requireCurrentWorkspace();
+
+  const [quote] = await db
+    .select({
+      status: quotes.status,
+      quoteNumber: quotes.quoteNumber,
+      dealId: quotes.dealId,
+      totalPence: quotes.totalPence,
+      currency: quotes.currency,
+    })
+    .from(quotes)
+    .where(and(eq(quotes.id, id), eq(quotes.workspaceId, workspace.id)))
+    .limit(1);
+  if (!quote) return { error: "Quote not found" };
+  if (quote.status !== "draft") {
+    return { error: `Quote is already ${quote.status} — only drafts can be sent` };
+  }
+
   await db
     .update(quotes)
     .set({ status: "sent", sentAt: new Date(), updatedAt: new Date() })
     .where(and(eq(quotes.id, id), eq(quotes.workspaceId, workspace.id)));
+
+  // The pipeline should know a quote went out (quote_sent existed in the
+  // enum but nothing ever wrote it).
+  await db.insert(activities).values({
+    workspaceId: workspace.id,
+    type: "quote_sent",
+    source: "manual",
+    subjectType: "deal",
+    subjectId: quote.dealId,
+    subject: `Sent quote ${quote.quoteNumber}`,
+    body: `Total ${(quote.totalPence / 100).toFixed(2)} ${quote.currency}`,
+    metadata: { quoteId: id, quoteNumber: quote.quoteNumber },
+    createdBy: user.id,
+  });
+
   revalidatePath(`/quotes/${id}`);
 }

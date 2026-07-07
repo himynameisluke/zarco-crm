@@ -37,6 +37,8 @@ export const dealFormSchema = z.object({
   closeDate: z.string().trim().max(20).optional().or(z.literal("")),
   organizationId: z.string().uuid().optional().or(z.literal("")),
   primaryContactId: z.string().uuid().optional().or(z.literal("")),
+  ownerId: z.string().uuid().optional().or(z.literal("")),
+  lostReason: z.string().trim().max(2000).optional().or(z.literal("")),
 });
 
 export type DealFormValues = z.infer<typeof dealFormSchema>;

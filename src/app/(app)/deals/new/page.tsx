@@ -5,20 +5,32 @@ import { db } from "@/lib/db";
 import { contacts, organizations } from "@/lib/db/schema";
 import { requireUser } from "@/lib/auth";
 import { requireCurrentWorkspace } from "@/lib/workspace/current";
+import { getWorkspaceMembers } from "@/lib/workspace/members";
 import { Topbar } from "@/components/nav/topbar";
 import { DealForm } from "@/components/deals/deal-form";
 import { createDeal } from "../actions";
+import { DEAL_STAGES, type DealStage } from "../schema";
 
 function contactName(c: { firstName: string | null; lastName: string | null; email: string | null }) {
   const name = [c.firstName, c.lastName].filter(Boolean).join(" ");
   return name || c.email || "Unnamed";
 }
 
-export default async function NewDealPage() {
-  await requireUser();
+export default async function NewDealPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ stage?: string }>;
+}) {
+  const user = await requireUser();
   const workspace = await requireCurrentWorkspace();
+  const { stage } = await searchParams;
+  // The kanban "Add deal" column buttons pass ?stage= so the new deal starts
+  // in the column it was created from.
+  const initialStage = (DEAL_STAGES as readonly string[]).includes(stage ?? "")
+    ? (stage as DealStage)
+    : undefined;
 
-  const [orgOptions, contactRows] = await Promise.all([
+  const [orgOptions, contactRows, members] = await Promise.all([
     db
       .select({ id: organizations.id, name: organizations.name })
       .from(organizations)
@@ -36,6 +48,7 @@ export default async function NewDealPage() {
       .where(eq(contacts.workspaceId, workspace.id))
       .orderBy(desc(contacts.updatedAt))
       .limit(200),
+    getWorkspaceMembers(workspace.id),
   ]);
 
   const contactOptions = contactRows.map((c) => ({
@@ -55,8 +68,11 @@ export default async function NewDealPage() {
         <div className="mx-auto max-w-3xl p-4 lg:p-8">
           <DealForm
             action={createDeal}
+            defaultValues={initialStage ? { stage: initialStage } : undefined}
             organizationOptions={orgOptions}
             contactOptions={contactOptions}
+            memberOptions={members.map((m) => ({ id: m.id, name: m.name }))}
+            currentUserId={user.id}
             cancelHref="/deals"
           />
         </div>

@@ -15,6 +15,7 @@ import {
 import { db } from "@/lib/db";
 import {
   activities,
+  authUsers,
   contacts,
   deals,
   organizations,
@@ -22,6 +23,7 @@ import {
 } from "@/lib/db/schema";
 import { requireUser } from "@/lib/auth";
 import { requireCurrentWorkspace } from "@/lib/workspace/current";
+import { displayNameFromEmail } from "@/lib/workspace/members";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -97,14 +99,18 @@ export default async function DealDetailPage({
       valuePence: deals.valuePence,
       currency: deals.currency,
       closeDate: deals.closeDate,
+      lostReason: deals.lostReason,
+      stageChangedAt: deals.stageChangedAt,
       createdAt: deals.createdAt,
       updatedAt: deals.updatedAt,
       organizationId: deals.organizationId,
       organizationName: organizations.name,
       primaryContactId: deals.primaryContactId,
+      ownerEmail: authUsers.email,
     })
     .from(deals)
     .leftJoin(organizations, eq(deals.organizationId, organizations.id))
+    .leftJoin(authUsers, eq(deals.ownerId, authUsers.id))
     .where(and(eq(deals.id, id), eq(deals.workspaceId, workspace.id)))
     .limit(1);
 
@@ -184,6 +190,13 @@ export default async function DealDetailPage({
               label="Stage"
               value={<DealStageSelect dealId={deal.id} currentStage={deal.stage} />}
             />
+            {deal.stage === "lost" && deal.lostReason ? (
+              <DetailRow
+                icon={ActivityIcon}
+                label="Reason lost"
+                value={deal.lostReason}
+              />
+            ) : null}
             <Separator />
             <DetailRow
               icon={CircleDollarSign}
@@ -192,8 +205,17 @@ export default async function DealDetailPage({
             />
             <DetailRow
               icon={Calendar}
-              label="Expected close"
+              label={
+                deal.stage === "won" || deal.stage === "lost"
+                  ? "Closed"
+                  : "Expected close"
+              }
               value={formatDate(deal.closeDate)}
+            />
+            <DetailRow
+              icon={UserIcon}
+              label="Owner"
+              value={displayNameFromEmail(deal.ownerEmail)}
             />
             <DetailRow
               icon={Building2}
@@ -239,7 +261,11 @@ export default async function DealDetailPage({
             <CardContent>
               {dealQuotes.length === 0 ? (
                 <p className="text-sm text-muted-foreground">
-                  No quotes yet. Quote builder comes in phase 4.
+                  No quotes yet.{" "}
+                  <Link href="/quotes/new" className="underline hover:no-underline">
+                    Create one
+                  </Link>{" "}
+                  to send pricing for this deal.
                 </p>
               ) : (
                 <ul className="space-y-2">

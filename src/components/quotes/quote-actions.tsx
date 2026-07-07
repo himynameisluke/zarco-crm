@@ -2,6 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { Check, Copy, Send } from "lucide-react";
+import { toast } from "sonner";
 
 import { markQuoteSent } from "@/app/(app)/quotes/actions";
 
@@ -36,7 +37,8 @@ export function MarkSentButton({ quoteId }: { quoteId: string }) {
       disabled={pending}
       onClick={() => {
         startTransition(async () => {
-          await markQuoteSent(quoteId);
+          const result = await markQuoteSent(quoteId);
+          if (result?.error) toast.error(result.error);
         });
       }}
     >

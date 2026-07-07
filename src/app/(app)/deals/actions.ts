@@ -8,7 +8,9 @@ import { db } from "@/lib/db";
 import { deals } from "@/lib/db/schema";
 import { requireUser } from "@/lib/auth";
 import { requireCurrentWorkspace } from "@/lib/workspace/current";
+import { isWorkspaceMember } from "@/lib/workspace/members";
 import { entityInWorkspace } from "@/lib/mcp/scope";
+import { logStageChange, stageTransitionValues } from "@/lib/deals/stage";
 import { DEAL_STAGES, dealFormSchema, type DealStage } from "./schema";
 
 function nullableUuid(value: FormDataEntryValue | null): string | null {
@@ -41,19 +43,23 @@ function parseFormData(formData: FormData) {
     closeDate: formData.get("closeDate"),
     organizationId: formData.get("organizationId"),
     primaryContactId: formData.get("primaryContactId"),
+    ownerId: formData.get("ownerId"),
+    lostReason: formData.get("lostReason"),
   });
 }
 
 /**
  * Validates that the org / contact a deal references belong to the caller's
- * workspace. The ids come straight from form data, and RLS is bypassed at the
- * connection level — without this, a forged request could link a deal to
- * another tenant's records and leak their names through joins.
+ * workspace, and that the owner is a workspace member. The ids come straight
+ * from form data, and RLS is bypassed at the connection level — without this,
+ * a forged request could link a deal to another tenant's records and leak
+ * their names through joins.
  */
 async function validateDealRefs(
   workspaceId: string,
   organizationId: string | null,
   primaryContactId: string | null,
+  ownerId: string | null,
 ): Promise<string | null> {
   if (
     organizationId &&
@@ -66,6 +72,9 @@ async function validateDealRefs(
     !(await entityInWorkspace("contact", primaryContactId, workspaceId))
   ) {
     return "Contact not found in this workspace";
+  }
+  if (ownerId && !(await isWorkspaceMember(workspaceId, ownerId))) {
+    return "Owner must be a member of this workspace";
   }
   return null;
 }
@@ -81,12 +90,18 @@ export async function createDeal(_: unknown, formData: FormData) {
 
   const organizationId = nullableUuid(formData.get("organizationId"));
   const primaryContactId = nullableUuid(formData.get("primaryContactId"));
+  const ownerId = nullableUuid(formData.get("ownerId")) ?? user.id;
   const refError = await validateDealRefs(
     workspace.id,
     organizationId,
     primaryContactId,
+    ownerId,
   );
   if (refError) return { error: refError };
+
+  const stage = parsed.data.stage;
+  const lostReason =
+    stage === "lost" ? parsed.data.lostReason?.trim() || null : null;
 
   const [inserted] = await db
     .insert(deals)
@@ -94,12 +109,13 @@ export async function createDeal(_: unknown, formData: FormData) {
       workspaceId: workspace.id,
       name: parsed.data.name,
       type: parsed.data.type,
-      stage: parsed.data.stage,
+      stage,
+      lostReason,
       valuePence: poundsToPence(formData.get("valuePounds")),
       closeDate: nullableDate(formData.get("closeDate")),
       organizationId,
       primaryContactId,
-      ownerId: user.id,
+      ownerId,
     })
     .returning({ id: deals.id });
 
@@ -108,7 +124,7 @@ export async function createDeal(_: unknown, formData: FormData) {
 }
 
 export async function updateDeal(id: string, _: unknown, formData: FormData) {
-  await requireUser();
+  const user = await requireUser();
   const workspace = await requireCurrentWorkspace();
 
   const parsed = parseFormData(formData);
@@ -118,26 +134,59 @@ export async function updateDeal(id: string, _: unknown, formData: FormData) {
 
   const organizationId = nullableUuid(formData.get("organizationId"));
   const primaryContactId = nullableUuid(formData.get("primaryContactId"));
+  const ownerId = nullableUuid(formData.get("ownerId"));
   const refError = await validateDealRefs(
     workspace.id,
     organizationId,
     primaryContactId,
+    ownerId,
   );
   if (refError) return { error: refError };
+
+  // Read the current stage first so a stage change through the edit form
+  // gets the same side effects (stageChangedAt, closeDate stamp, lostReason,
+  // status_change activity) as the inline stage selector and MCP.
+  const [before] = await db
+    .select({ name: deals.name, stage: deals.stage })
+    .from(deals)
+    .where(and(eq(deals.id, id), eq(deals.workspaceId, workspace.id)))
+    .limit(1);
+  if (!before) {
+    return { error: "Deal not found" };
+  }
+
+  const stageChanged = before.stage !== parsed.data.stage;
+  const reason = parsed.data.lostReason?.trim() || null;
 
   await db
     .update(deals)
     .set({
       name: parsed.data.name,
       type: parsed.data.type,
-      stage: parsed.data.stage,
       valuePence: poundsToPence(formData.get("valuePounds")),
       closeDate: nullableDate(formData.get("closeDate")),
       organizationId,
       primaryContactId,
+      ...(ownerId ? { ownerId } : {}),
       updatedAt: new Date(),
+      ...(stageChanged
+        ? stageTransitionValues(parsed.data.stage, reason)
+        : // Stage untouched — still allow editing the lost reason in place.
+          { stage: parsed.data.stage, lostReason: parsed.data.stage === "lost" ? reason : null }),
     })
     .where(and(eq(deals.id, id), eq(deals.workspaceId, workspace.id)));
+
+  if (stageChanged) {
+    await logStageChange({
+      workspaceId: workspace.id,
+      dealId: id,
+      dealName: parsed.data.name,
+      from: before.stage,
+      to: parsed.data.stage,
+      reason,
+      userId: user.id,
+    });
+  }
 
   revalidatePath("/deals");
   revalidatePath(`/deals/${id}`);
@@ -154,17 +203,40 @@ export async function deleteDeal(id: string) {
   redirect("/deals");
 }
 
-/** Update only the stage of a deal — used by the inline stage selector on the detail page. */
-export async function updateDealStage(id: string, stage: string) {
-  await requireUser();
+/**
+ * Update only the stage of a deal — used by the inline stage selector on the
+ * detail page. `reason` is recorded as the lost reason when stage is 'lost'
+ * and lands in the status_change activity either way.
+ */
+export async function updateDealStage(id: string, stage: string, reason?: string) {
+  const user = await requireUser();
   const workspace = await requireCurrentWorkspace();
   if (!isDealStage(stage)) {
     throw new Error(`Invalid stage: ${stage}`);
   }
+
+  const [before] = await db
+    .select({ name: deals.name, stage: deals.stage })
+    .from(deals)
+    .where(and(eq(deals.id, id), eq(deals.workspaceId, workspace.id)))
+    .limit(1);
+  if (!before || before.stage === stage) return;
+
   await db
     .update(deals)
-    .set({ stage, updatedAt: new Date() })
+    .set(stageTransitionValues(stage, reason ?? null))
     .where(and(eq(deals.id, id), eq(deals.workspaceId, workspace.id)));
+
+  await logStageChange({
+    workspaceId: workspace.id,
+    dealId: id,
+    dealName: before.name,
+    from: before.stage,
+    to: stage,
+    reason: reason ?? null,
+    userId: user.id,
+  });
+
   revalidatePath("/deals");
   revalidatePath(`/deals/${id}`);
 }

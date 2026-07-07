@@ -1,12 +1,13 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useState } from "react";
 import Link from "next/link";
 import { Loader2 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import {
   Select,
   SelectContent,
@@ -39,9 +40,15 @@ type DealFormProps = {
     closeDate?: string | null;
     organizationId?: string | null;
     primaryContactId?: string | null;
+    ownerId?: string | null;
+    lostReason?: string | null;
   };
   organizationOptions: { id: string; name: string }[];
   contactOptions: { id: string; name: string }[];
+  /** Workspace members for the owner select. */
+  memberOptions: { id: string; name: string }[];
+  /** Used as the default owner on create. */
+  currentUserId: string;
   submitLabel?: string;
   cancelHref: string;
 };
@@ -56,10 +63,15 @@ export function DealForm({
   defaultValues,
   organizationOptions,
   contactOptions,
+  memberOptions,
+  currentUserId,
   submitLabel = "Save deal",
   cancelHref,
 }: DealFormProps) {
   const [state, formAction, pending] = useActionState(action, null);
+  // Controlled so the Lost reason field can appear the moment the stage
+  // flips to 'lost' — capturing WHY at the same moment as the change.
+  const [stage, setStage] = useState<DealStage>(defaultValues?.stage ?? "lead");
 
   return (
     <form action={formAction} className="space-y-6">
@@ -98,7 +110,11 @@ export function DealForm({
 
           <div className="grid gap-2">
             <Label htmlFor="stage">Stage</Label>
-            <Select name="stage" defaultValue={defaultValues?.stage ?? "lead"}>
+            <Select
+              name="stage"
+              value={stage}
+              onValueChange={(v) => setStage(v as DealStage)}
+            >
               <SelectTrigger id="stage" disabled={pending}>
                 <SelectValue placeholder="Select stage" />
               </SelectTrigger>
@@ -111,6 +127,20 @@ export function DealForm({
               </SelectContent>
             </Select>
           </div>
+
+          {stage === "lost" ? (
+            <div className="grid gap-2 sm:col-span-2">
+              <Label htmlFor="lostReason">Reason lost</Label>
+              <Textarea
+                id="lostReason"
+                name="lostReason"
+                rows={2}
+                placeholder="e.g. Went with a competitor on price"
+                defaultValue={defaultValues?.lostReason ?? ""}
+                disabled={pending}
+              />
+            </div>
+          ) : null}
 
           <div className="grid gap-2">
             <Label htmlFor="valuePounds">Value (£)</Label>
@@ -135,6 +165,25 @@ export function DealForm({
               defaultValue={defaultValues?.closeDate ?? ""}
               disabled={pending}
             />
+          </div>
+
+          <div className="grid gap-2 sm:col-span-2">
+            <Label htmlFor="ownerId">Owner</Label>
+            <Select
+              name="ownerId"
+              defaultValue={defaultValues?.ownerId ?? currentUserId}
+            >
+              <SelectTrigger id="ownerId" disabled={pending}>
+                <SelectValue placeholder="Select owner" />
+              </SelectTrigger>
+              <SelectContent>
+                {memberOptions.map((m) => (
+                  <SelectItem key={m.id} value={m.id}>
+                    {m.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
 
           <div className="grid gap-2 sm:col-span-2">

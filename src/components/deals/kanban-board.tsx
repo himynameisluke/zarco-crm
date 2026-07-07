@@ -18,6 +18,9 @@ type Deal = {
   currency: string;
   closeDate: string | null;
   updatedAt: Date;
+  /** When the deal last changed stage — powers true days-in-stage. */
+  stageChangedAt: Date;
+  ownerId: string | null;
   organizationName: string | null;
   primaryContactFirstName: string | null;
   primaryContactLastName: string | null;
@@ -70,7 +73,9 @@ function daysChipStyle(days: number) {
 }
 
 function DealCard({ deal }: { deal: Deal }) {
-  const days = daysSince(deal.updatedAt) ?? 0;
+  // Real time-in-stage: stageChangedAt only moves on stage transitions,
+  // unlike updatedAt which resets on any edit.
+  const days = daysSince(deal.stageChangedAt) ?? 0;
   const chip = daysChipStyle(days);
   const contactInitials = getInitials(
     deal.primaryContactFirstName,
@@ -294,7 +299,14 @@ function StageColumn({
   );
 }
 
-export function KanbanBoard({ deals }: { deals: Deal[] }) {
+export function KanbanBoard({
+  deals,
+  visibleStages,
+}: {
+  deals: Deal[];
+  /** When a stage filter is active, render only those columns. */
+  visibleStages?: DealStage[];
+}) {
   const grouped: Record<DealStage, Deal[]> = {
     lead: [],
     qualified: [],
@@ -307,6 +319,8 @@ export function KanbanBoard({ deals }: { deals: Deal[] }) {
     grouped[d.stage].push(d);
   }
 
+  const stages = visibleStages ?? DEAL_STAGES;
+
   return (
     <div
       style={{
@@ -317,7 +331,7 @@ export function KanbanBoard({ deals }: { deals: Deal[] }) {
       }}
     >
       <div style={{ display: "flex", gap: 14, height: "100%" }}>
-        {DEAL_STAGES.map((stage) => (
+        {stages.map((stage) => (
           <StageColumn key={stage} stage={stage} deals={grouped[stage]} />
         ))}
       </div>

@@ -22,7 +22,9 @@ export function TaskCheckbox({
       type="button"
       onClick={() => {
         startTransition(async () => {
-          await toggleTaskDone(taskId, status);
+          // The action reads the row's current status server-side; passing
+          // the client's copy risked flipping the wrong way on stale data.
+          await toggleTaskDone(taskId);
         });
       }}
       aria-label={isDone ? "Mark as not done" : "Mark as done"}
