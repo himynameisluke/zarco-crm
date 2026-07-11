@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 
 import { createClient } from "@/lib/supabase/server";
+import { getCurrentWorkspace } from "@/lib/workspace/current";
 import {
   Card,
   CardContent,
@@ -84,6 +85,11 @@ export default async function AuthorizePage({
     redirect(`/login?next=${encodeURIComponent(next)}`);
   }
 
+  // The workspace this grant will be bound to (what decideConsent stamps).
+  // Shown on the form so "which books am I connecting?" is never a surprise —
+  // switch workspace in the CRM first if it's the wrong one.
+  const workspace = await getCurrentWorkspace();
+
   return (
     <div className="flex min-h-screen items-center justify-center bg-muted/30 p-4">
       <Card className="w-full max-w-md">
@@ -97,6 +103,7 @@ export default async function AuthorizePage({
           <ConsentForm
             clientName={req.client.clientName}
             userEmail={user.email ?? "unknown"}
+            workspaceName={workspace?.name ?? null}
             scope={req.scope}
             hiddenFields={{
               client_id: req.clientId,

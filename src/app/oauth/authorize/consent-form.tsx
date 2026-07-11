@@ -9,6 +9,7 @@ import { decideConsent } from "./actions";
 type ConsentFormProps = {
   clientName: string;
   userEmail: string;
+  workspaceName: string | null;
   scope: string;
   hiddenFields: Record<string, string | null>;
 };
@@ -16,6 +17,7 @@ type ConsentFormProps = {
 export function ConsentForm({
   clientName,
   userEmail,
+  workspaceName,
   scope,
   hiddenFields,
 }: ConsentFormProps) {
@@ -40,6 +42,13 @@ export function ConsentForm({
           <span className="font-semibold">{clientName}</span> wants to access your
           Zarco CRM as <span className="font-semibold">{userEmail}</span>.
         </p>
+        {workspaceName && (
+          <p className="text-sm">
+            This connection will act in the{" "}
+            <span className="font-semibold">{workspaceName}</span> workspace.
+            Not the right one? Switch workspace in the CRM first, then retry.
+          </p>
+        )}
         <p className="text-sm text-muted-foreground">
           Scope: <code className="rounded bg-muted px-1.5 py-0.5 text-xs">{scope}</code>{" "}
           — read and write access to your CRM via MCP. High-stakes actions

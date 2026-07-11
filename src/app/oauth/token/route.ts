@@ -102,6 +102,8 @@ export async function POST(request: NextRequest) {
     clientId: stored.clientId,
     userId: stored.userId,
     scope: stored.scope,
+    // Workspace binding rides the code → token → every MCP call (see schema).
+    workspaceId: stored.workspaceId,
     expiresAt,
   });
 

@@ -50,6 +50,13 @@
       "when": 1783455683744,
       "tag": "0006_pretty_scarecrow",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1783768064989,
+      "tag": "0007_living_cassandra_nova",
+      "breakpoints": true
     }
   ]
 }

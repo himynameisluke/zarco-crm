@@ -6,6 +6,7 @@ import { redirect } from "next/navigation";
 import { db } from "@/lib/db";
 import { oauthAuthorizationCodes } from "@/lib/db/schema";
 import { requireUser } from "@/lib/auth";
+import { getCurrentWorkspace } from "@/lib/workspace/current";
 import { OAUTH_CONSTANTS } from "@/lib/oauth/config";
 import {
   buildErrorRedirect,
@@ -73,6 +74,13 @@ export async function decideConsent(formData: FormData) {
   const code = randomBytes(32).toString("base64url");
   const expiresAt = new Date(Date.now() + OAUTH_CONSTANTS.CODE_TTL_SECONDS * 1000);
 
+  // Bind the grant to the workspace the user is acting in RIGHT NOW (cookie +
+  // membership verified server-side — never a form field, so it can't be
+  // tampered). The consent page shows this workspace by name; MCP calls made
+  // with the resulting token land in these books. Null (no workspace) keeps
+  // the legacy primary-workspace fallback.
+  const workspace = await getCurrentWorkspace();
+
   await db.insert(oauthAuthorizationCodes).values({
     code,
     clientId: req.client.id,
@@ -82,6 +90,7 @@ export async function decideConsent(formData: FormData) {
     codeChallengeMethod: req.codeChallengeMethod,
     scope: req.scope,
     resource: req.resource,
+    workspaceId: workspace?.id ?? null,
     expiresAt,
   });
 

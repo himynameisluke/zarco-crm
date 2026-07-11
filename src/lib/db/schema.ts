@@ -582,6 +582,13 @@ export const oauthAuthorizationCodes = pgTable(
     codeChallengeMethod: text("code_challenge_method").notNull(),
     scope: text("scope").notNull().default("mcp"),
     resource: text("resource"),
+    // The workspace the user was acting in when they approved consent. Carried
+    // onto the access token so MCP calls land in the books the user MEANT —
+    // not just their primary workspace. Nullable: legacy grants fall back to
+    // primary. Cascade: delete the workspace and its grants die with it.
+    workspaceId: uuid("workspace_id").references(() => workspaces.id, {
+      onDelete: "cascade",
+    }),
     expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
     consumedAt: timestamp("consumed_at", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
@@ -600,6 +607,10 @@ export const oauthAccessTokens = pgTable(
       .notNull()
       .references(() => authUsers.id, { onDelete: "cascade" }),
     scope: text("scope").notNull().default("mcp"),
+    // Copied from the authorization code at exchange — see the comment there.
+    workspaceId: uuid("workspace_id").references(() => workspaces.id, {
+      onDelete: "cascade",
+    }),
     expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     lastUsedAt: timestamp("last_used_at", { withTimezone: true }),

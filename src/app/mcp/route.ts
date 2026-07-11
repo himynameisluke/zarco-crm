@@ -44,7 +44,7 @@ async function verifyToken(
     clientId: verified.clientId,
     scopes: [verified.scope],
     expiresAt: Math.floor(verified.expiresAt.getTime() / 1000),
-    extra: { userId: verified.userId },
+    extra: { userId: verified.userId, workspaceId: verified.workspaceId },
   };
 }
 

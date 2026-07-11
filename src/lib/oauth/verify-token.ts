@@ -8,6 +8,7 @@ export type VerifiedToken = {
   userId: string;
   clientId: string;
   scope: string;
+  workspaceId: string | null; // grant-bound workspace; null = legacy token (primary fallback)
   expiresAt: Date;
 };
 
@@ -44,6 +45,7 @@ export async function verifyBearerToken(
       userId: oauthAccessTokens.userId,
       clientId: oauthAccessTokens.clientId,
       scope: oauthAccessTokens.scope,
+      workspaceId: oauthAccessTokens.workspaceId,
       expiresAt: oauthAccessTokens.expiresAt,
     });
 
