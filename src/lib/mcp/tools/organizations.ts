@@ -6,6 +6,7 @@ import { db } from "@/lib/db";
 import { contacts, deals, organizations } from "@/lib/db/schema";
 import { auditMcpWrite } from "../audit";
 import { requireMcpWorkspace, textResult } from "../context";
+import { formatMoney } from "../money";
 
 function nullable(value: string | undefined | null): string | null {
   if (!value) return null;
@@ -117,7 +118,7 @@ export function registerOrganizationTools(server: McpServer) {
       return textResult({
         organization: org,
         contacts: orgContacts,
-        deals: orgDeals,
+        deals: orgDeals.map((d) => ({ ...d, value: formatMoney(d.valuePence, d.currency) })),
       });
     },
   );
