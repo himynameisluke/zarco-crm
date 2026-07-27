@@ -15,6 +15,7 @@ import { auditMcpWrite } from "../audit";
 import { requireMcpWorkspace, textResult } from "../context";
 import { entityInWorkspace } from "../scope";
 import { stageTransitionValues } from "@/lib/deals/stage";
+import { formatMoney, MONEY_UNITS_NOTE } from "../money";
 
 const STAGE_VALUES = [
   "lead",
@@ -27,12 +28,19 @@ const STAGE_VALUES = [
 
 const TYPE_VALUES = ["engagement", "sale", "project", "retainer"] as const;
 
+/* Every read path returns money twice: `value` for a person to read, `valuePence`
+   for arithmetic. See ../money.ts for why the field name alone was not enough. */
+function withMoney<T extends { valuePence: number | null; currency?: string | null }>(row: T) {
+  return { ...row, value: formatMoney(row.valuePence, row.currency ?? "GBP") };
+}
+
 export function registerDealTools(server: McpServer) {
   server.registerTool(
     "find_deal",
     {
       description:
-        "Search deals by name, optionally filtered by stage. Returns up to 20 matches with id, name, stage, value, and organization name.",
+        "Search deals by name, optionally filtered by stage. Returns up to 20 matches with id, name, stage, value, and organization name. " +
+        MONEY_UNITS_NOTE,
       inputSchema: {
         query: z
           .string()
@@ -75,7 +83,7 @@ export function registerDealTools(server: McpServer) {
         .where(and(...conditions))
         .orderBy(desc(deals.updatedAt))
         .limit(20);
-      return textResult({ count: rows.length, deals: rows });
+      return textResult({ count: rows.length, deals: rows.map(withMoney) });
     },
   );
 
@@ -83,7 +91,8 @@ export function registerDealTools(server: McpServer) {
     "get_deal",
     {
       description:
-        "Get a deal with organization, primary contact, last 20 activities, projects, and quotes. Use this when you need the full picture for follow-up actions.",
+        "Get a deal with organization, primary contact, last 20 activities, projects, and quotes. Use this when you need the full picture for follow-up actions. " +
+        MONEY_UNITS_NOTE,
       inputSchema: {
         id: z.string().uuid().describe("Deal UUID"),
       },
@@ -194,7 +203,7 @@ export function registerDealTools(server: McpServer) {
         ]);
 
       return textResult({
-        deal,
+        deal: withMoney(deal),
         primary_contact: primaryContact,
         activities: dealActivities,
         projects: dealProjects,
@@ -415,7 +424,8 @@ export function registerDealTools(server: McpServer) {
     "list_deals",
     {
       description:
-        "List deals with optional filters. No query string required — use this to scan the whole pipeline (unlike find_deal). Filters: stage, type, createdSinceDays (e.g. 7 = last week). Default limit 50, max 200. Ordered by updated_at desc.",
+        "List deals with optional filters. No query string required — use this to scan the whole pipeline (unlike find_deal). Filters: stage, type, createdSinceDays (e.g. 7 = last week). Default limit 50, max 200. Ordered by updated_at desc. " +
+        MONEY_UNITS_NOTE,
       inputSchema: {
         stage: z.enum(STAGE_VALUES).optional(),
         type: z.enum(TYPE_VALUES).optional(),
@@ -465,7 +475,7 @@ export function registerDealTools(server: McpServer) {
         .orderBy(desc(deals.updatedAt))
         .limit(limit);
 
-      return textResult({ count: rows.length, deals: rows });
+      return textResult({ count: rows.length, deals: rows.map(withMoney) });
     },
   );
 
@@ -473,7 +483,8 @@ export function registerDealTools(server: McpServer) {
     "get_pipeline_summary",
     {
       description:
-        "Single-call snapshot of the deal pipeline: total open value, weighted forecast (stage-weighted), counts + values per stage, won/lost ratios over the last 90 days. Use this to answer 'how's my pipeline?' style questions in one round-trip instead of fishing through find_deal.",
+        "Single-call snapshot of the deal pipeline: total open value, weighted forecast (stage-weighted), counts + values per stage, won/lost ratios over the last 90 days. Use this to answer 'how's my pipeline?' style questions in one round-trip instead of fishing through find_deal, and prefer it over summing list_deals rows yourself — the totals here are already computed and already formatted. " +
+        MONEY_UNITS_NOTE,
       inputSchema: {},
       annotations: { destructiveHint: false, idempotentHint: true },
     },
@@ -534,12 +545,21 @@ export function registerDealTools(server: McpServer) {
 
       return textResult({
         pipeline: {
+          // Formatted first: these are the figures meant to reach a person, already
+          // totalled here so nobody downstream has to sum rows or divide by 100.
+          openValue: formatMoney(openValue),
+          weightedForecast: formatMoney(Math.round(weightedPence)),
           openValuePence: openValue,
           openCount,
           weightedForecastPence: Math.round(weightedPence),
           currency: "GBP",
         },
-        byStage,
+        byStage: Object.fromEntries(
+          Object.entries(byStage).map(([stage, s]) => [
+            stage,
+            { ...s, value: formatMoney(s.valuePence) },
+          ]),
+        ),
         last90Days: { won, lost, winRate: winRate90d },
       });
     },
