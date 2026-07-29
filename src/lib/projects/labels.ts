@@ -47,3 +47,118 @@ export const TASK_PRIORITY_LABELS: Record<TaskPriorityValue, string> = {
   high: "High",
   urgent: "Urgent",
 };
+
+// ---------------------------------------------------------------------------
+// Project management labels — extends the same pure/no-db-import pattern
+// above. Canonical lists that live app-side rather than as DB enums
+// (projectType) are defined here too, so actions/MCP/UI share one source.
+// ---------------------------------------------------------------------------
+
+export const PROJECT_STATUSES = [
+  "not_started",
+  "in_progress",
+  "on_hold",
+  "completed",
+] as const;
+
+export type ProjectStatusValue = (typeof PROJECT_STATUSES)[number];
+
+export const PROJECT_STATUS_LABELS: Record<ProjectStatusValue, string> = {
+  not_started: "Not started",
+  in_progress: "In progress",
+  on_hold: "On hold",
+  completed: "Completed",
+};
+
+export const PROJECT_HEALTHS = ["on_track", "at_risk", "off_track"] as const;
+
+export type ProjectHealthLabelValue = (typeof PROJECT_HEALTHS)[number];
+
+export const PROJECT_HEALTH_LABELS: Record<ProjectHealthLabelValue, string> = {
+  on_track: "On track",
+  at_risk: "At risk",
+  off_track: "Off track",
+};
+
+// Canonical project types — app-side (not a DB enum) so the list stays
+// editable without a migration. projects.projectType is a nullable text
+// column; any of these are valid, null means unset.
+export const PROJECT_TYPES = [
+  "console_implementation",
+  "consultancy",
+  "automation",
+  "bespoke_build",
+  "agent_deployment",
+  "integration",
+  "other",
+] as const;
+
+export type ProjectTypeValue = (typeof PROJECT_TYPES)[number];
+
+export const PROJECT_TYPE_LABELS: Record<ProjectTypeValue, string> = {
+  console_implementation: "Console implementation",
+  consultancy: "Consultancy",
+  automation: "Automation",
+  bespoke_build: "Bespoke build",
+  agent_deployment: "Agent deployment",
+  integration: "Integration",
+  other: "Other",
+};
+
+export const PROJECT_RISK_KINDS = ["risk", "blocker"] as const;
+export type ProjectRiskKindValue = (typeof PROJECT_RISK_KINDS)[number];
+export const PROJECT_RISK_KIND_LABELS: Record<ProjectRiskKindValue, string> = {
+  risk: "Risk",
+  blocker: "Blocker",
+};
+
+export const PROJECT_RISK_SEVERITIES = [
+  "low",
+  "medium",
+  "high",
+  "critical",
+] as const;
+export type ProjectRiskSeverityValue = (typeof PROJECT_RISK_SEVERITIES)[number];
+export const PROJECT_RISK_SEVERITY_LABELS: Record<ProjectRiskSeverityValue, string> = {
+  low: "Low",
+  medium: "Medium",
+  high: "High",
+  critical: "Critical",
+};
+
+// Blockers don't carry a likelihood (they're already happening) — the DB
+// column is nullable for exactly that reason.
+export const PROJECT_RISK_LIKELIHOODS = ["low", "medium", "high"] as const;
+export type ProjectRiskLikelihoodValue = (typeof PROJECT_RISK_LIKELIHOODS)[number];
+export const PROJECT_RISK_LIKELIHOOD_LABELS: Record<ProjectRiskLikelihoodValue, string> = {
+  low: "Low",
+  medium: "Medium",
+  high: "High",
+};
+
+export const PROJECT_RISK_STATUSES = ["open", "monitoring", "resolved"] as const;
+export type ProjectRiskStatusValue = (typeof PROJECT_RISK_STATUSES)[number];
+export const PROJECT_RISK_STATUS_LABELS: Record<ProjectRiskStatusValue, string> = {
+  open: "Open",
+  monitoring: "Monitoring",
+  resolved: "Resolved",
+};
+
+export const PROJECT_TEMPLATE_ITEM_KINDS = ["phase", "milestone", "task"] as const;
+export type ProjectTemplateItemKindValue = (typeof PROJECT_TEMPLATE_ITEM_KINDS)[number];
+
+// Fallback default phase sequence — mirrors project_settings.defaultPhases'
+// DB default (schema.ts) so a workspace with no settings row yet (or one
+// created before this feature) still gets a sensible board. Kept as a
+// literal duplicate rather than importing schema.ts here to preserve this
+// module's no-db-import purity.
+export const DEFAULT_PROJECT_PHASES = [
+  "Discovery",
+  "Solution Design",
+  "Build",
+  "Integration",
+  "Testing",
+  "Training",
+  "Go-Live",
+  "Hypercare",
+] as const;
