@@ -1,5 +1,44 @@
 # Handoff — Zarco CRM
 
+> ## PROJECT MANAGEMENT BUILD-OUT (2026-07-29) — built, gated on migration 0008
+>
+> The thin `projects` entity is now a full implementation-management workspace
+> (Monday-style), built on branch `feat/project-management` (worktree
+> `~/zarco-crm-projects`). Spec: `docs/superpowers/specs/2026-07-29-project-management.md`.
+>
+> **What's on the branch:** migration `drizzle/0008_cute_speed_demon.sql`
+> (additive: 7 new tables — phases/milestones/risks/links/templates/template
+> items/project settings; projects gains organization_id/health/description/
+> success_criteria/project_type/current_phase_id/progress_manual/completed_at/
+> template_id; tasks gains priority/phase/milestone/sort_order; enum ADD VALUEs
+> blocked+cancelled on task_status, milestone/risk types on activity_type);
+> pure cores + 116 vitest tests in `src/lib/projects/*`; queries/writes
+> io-shell; full server-action surface; `/projects` rebuilt (table + board w/
+> drag-drop + timeline, metric cards, filters, CSV); creation wizard w/
+> template preview; `[id]` detail workspace (overview/tasks/milestones/risks/
+> activity/notes/links); `/settings/projects` (templates editor incl. the two
+> seeded structures in `templates-seed.ts`, default phases); MCP `projects.ts`
+> — 9 tools, server 0.6.0 → 0.7.0 (closes the "Projects MCP tools" backlog
+> item). Gates green: `pnpm test` (116), `tsc --noEmit`, `pnpm build`.
+>
+> **THE ONE BLOCKING STEP: migration 0008 is NOT applied to the live DB**
+> (permission gate stopped the session; drizzle-kit migrate also crashes
+> silently on Node 25 — the known flakiness). Apply with
+> `cd ~/zarco-crm-projects && pnpm db:migrate`, or hand-apply the file via a
+> postgres.js script + record `(hash, journal-when)` in
+> `drizzle.__drizzle_migrations`. Live `projects` has ZERO rows so the
+> in-file backfill is a no-op. `supabase/policies.sql` gained policies for
+> the 7 new tables — apply alongside. **Do NOT merge this branch to main
+> before the migration is applied** — prod auto-deploys and the rebuilt
+> /projects pages query the new columns.
+>
+> After migration: local dev verify (Demo workspace), merge → push → live
+> verify. Runtime checks owed (typecheck-only build phase): board drag-drop
+> persistence, wizard template expansion, Base UI Select + native FormData in
+> the wizard/risk dialogs, per-row correlated aggregates in `queries.ts`.
+> Unrelated: branch `fix/mcp-money-units` (1 commit, MCP money formatting)
+> is still unmerged from a prior session.
+
 **Date:** 2026-07-08 (end of a long 2026-07-07→08 session)
 **Branch:** `main`, all work pushed. Working tree clean (except `.claude/`).
 **Prod:** https://zarco-crm.vercel.app — pushing to `main` auto-deploys via Vercel.
