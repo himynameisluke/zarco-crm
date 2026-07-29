@@ -5,16 +5,18 @@ import {
   eq,
   gt,
   gte,
+  inArray,
   isNotNull,
   isNull,
   lt,
-  ne,
   or,
   sql,
 } from "drizzle-orm";
 import {
   ArrowUpLeft,
   ArrowDownRight,
+  AlertTriangle,
+  CheckCircle2,
   ChevronRight,
   Filter,
   Home,
@@ -22,6 +24,7 @@ import {
   Phone,
   Calendar,
   FileText,
+  ShieldCheck,
   StickyNote,
   Plus,
   Sparkles,
@@ -36,6 +39,7 @@ import {
   tasks,
 } from "@/lib/db/schema";
 import { requireCurrentWorkspace } from "@/lib/workspace/current";
+import { OPEN_TASK_STATUSES } from "@/lib/projects/labels";
 import { Topbar } from "@/components/nav/topbar";
 import { formatMoney, formatRelative } from "@/lib/format";
 import {
@@ -320,6 +324,9 @@ const ACTIVITY_CONFIG: Record<
   quote_viewed: { icon: FileText, color: "var(--ink-60)" },
   quote_accepted: { icon: FileText, color: "var(--success)" },
   task_completed: { icon: ChevronRight, color: "var(--success)" },
+  milestone_completed: { icon: CheckCircle2, color: "var(--success)" },
+  risk_raised: { icon: AlertTriangle, color: "var(--ink-60)" },
+  risk_resolved: { icon: ShieldCheck, color: "var(--success)" },
 };
 
 function ActivityItem({
@@ -524,7 +531,7 @@ export async function Dashboard({ userEmail }: { userEmail: string }) {
     .where(
       and(
         eq(tasks.workspaceId, workspace.id),
-        ne(tasks.status, "done"),
+        inArray(tasks.status, OPEN_TASK_STATUSES),
         isNotNull(tasks.dueAt),
         gte(tasks.dueAt, now),
         lt(tasks.dueAt, startOfTomorrow),
@@ -545,7 +552,7 @@ export async function Dashboard({ userEmail }: { userEmail: string }) {
     .where(
       and(
         eq(tasks.workspaceId, workspace.id),
-        ne(tasks.status, "done"),
+        inArray(tasks.status, OPEN_TASK_STATUSES),
         isNotNull(tasks.dueAt),
         lt(tasks.dueAt, now),
       ),

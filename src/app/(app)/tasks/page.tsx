@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { and, asc, desc, eq, ne } from "drizzle-orm";
+import { and, asc, desc, eq, inArray } from "drizzle-orm";
 import { ListChecks } from "lucide-react";
 
 import { db } from "@/lib/db";
@@ -10,12 +10,13 @@ import { Topbar } from "@/components/nav/topbar";
 import { TaskCheckbox } from "@/components/tasks/task-checkbox";
 import { TaskQuickAdd } from "@/components/tasks/task-quick-add";
 import { formatRelative } from "@/lib/format";
+import { OPEN_TASK_STATUSES, type TaskStatusValue } from "@/lib/projects/labels";
 
 type TaskRow = {
   id: string;
   title: string;
   description: string | null;
-  status: "todo" | "in_progress" | "done";
+  status: TaskStatusValue;
   dueAt: Date | null;
   completedAt: Date | null;
   subjectType: "contact" | "organization" | "deal" | "project" | null;
@@ -176,7 +177,10 @@ export default async function TasksPage() {
     })
     .from(tasks)
     .where(
-      and(eq(tasks.workspaceId, workspace.id), ne(tasks.status, "done")),
+      and(
+        eq(tasks.workspaceId, workspace.id),
+        inArray(tasks.status, OPEN_TASK_STATUSES),
+      ),
     )
     .orderBy(asc(tasks.dueAt), desc(tasks.createdAt))
     .limit(500)) as TaskRow[];

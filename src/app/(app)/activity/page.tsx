@@ -2,12 +2,15 @@ import Link from "next/link";
 import { and, desc, eq } from "drizzle-orm";
 import {
   Activity as ActivityIcon,
+  AlertTriangle,
   Calendar,
+  CheckCircle2,
   CheckSquare,
   ChevronRight,
   FileText,
   Mail,
   Phone,
+  ShieldCheck,
   StickyNote,
   Zap,
 } from "lucide-react";
@@ -30,6 +33,10 @@ const ACTIVITY_TYPES = [
   "quote_sent",
   "quote_viewed",
   "quote_accepted",
+  // Project management additions.
+  "milestone_completed",
+  "risk_raised",
+  "risk_resolved",
 ] as const;
 
 const ACTIVITY_SOURCES = [
@@ -55,6 +62,9 @@ const TYPE_CONFIG: Record<
   quote_sent: { icon: FileText, color: "var(--ink-60)", label: "Quote sent" },
   quote_viewed: { icon: FileText, color: "var(--ink-60)", label: "Quote viewed" },
   quote_accepted: { icon: FileText, color: "var(--success)", label: "Quote accepted" },
+  milestone_completed: { icon: CheckCircle2, color: "var(--success)", label: "Milestone" },
+  risk_raised: { icon: AlertTriangle, color: "var(--ink-60)", label: "Risk raised" },
+  risk_resolved: { icon: ShieldCheck, color: "var(--success)", label: "Risk resolved" },
 };
 
 const SOURCE_LABELS: Record<string, string> = {

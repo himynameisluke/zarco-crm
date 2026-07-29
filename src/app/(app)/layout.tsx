@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation";
-import { and, eq, ne, sql } from "drizzle-orm";
+import { and, eq, inArray, sql } from "drizzle-orm";
 
 import { db } from "@/lib/db";
 import { contracts, deals, inboxItems, tasks } from "@/lib/db/schema";
@@ -7,6 +7,7 @@ import { createClient } from "@/lib/supabase/server";
 import { getCurrentWorkspace } from "@/lib/workspace/current";
 import { bootstrapWorkspaceForUser } from "@/lib/workspace/bootstrap";
 import { listMyWorkspaces } from "@/lib/workspace/actions";
+import { OPEN_TASK_STATUSES } from "@/lib/projects/labels";
 import { Sidebar, type SidebarCounts } from "@/components/nav/sidebar";
 import { Toaster } from "@/components/ui/sonner";
 import { CommandPaletteLoader } from "@/components/command-palette/loader";
@@ -52,7 +53,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
             .where(
               and(
                 eq(tasks.workspaceId, workspace.id),
-                ne(tasks.status, "done"),
+                inArray(tasks.status, OPEN_TASK_STATUSES),
               ),
             )
             .then((r) => r[0]?.n ?? 0),
