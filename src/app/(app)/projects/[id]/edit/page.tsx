@@ -1,14 +1,16 @@
 import { notFound } from "next/navigation";
-import { and, desc, eq } from "drizzle-orm";
+import { asc, desc, eq } from "drizzle-orm";
 import { Layers } from "lucide-react";
 
 import { db } from "@/lib/db";
-import { deals, projects } from "@/lib/db/schema";
+import { deals, organizations } from "@/lib/db/schema";
 import { requireUser } from "@/lib/auth";
 import { requireCurrentWorkspace } from "@/lib/workspace/current";
+import { getWorkspaceMembers } from "@/lib/workspace/members";
+import { getProjectDetail } from "@/lib/projects/queries";
 import { Topbar } from "@/components/nav/topbar";
-import { ProjectForm } from "@/components/projects/project-form";
-import { updateProject } from "../../actions";
+import { ProjectEditForm } from "@/components/projects/detail/project-edit-form";
+import { updateProjectDetailsForm } from "../../actions-detail-extra";
 
 export default async function EditProjectPage({
   params,
@@ -19,24 +21,24 @@ export default async function EditProjectPage({
   const workspace = await requireCurrentWorkspace();
   const { id } = await params;
 
-  const [project, dealOptions] = await Promise.all([
+  const [detail, orgOptions, dealOptions, members] = await Promise.all([
+    getProjectDetail(workspace.id, id),
     db
-      .select()
-      .from(projects)
-      .where(
-        and(eq(projects.id, id), eq(projects.workspaceId, workspace.id)),
-      )
-      .limit(1)
-      .then((r) => r[0]),
+      .select({ id: organizations.id, name: organizations.name })
+      .from(organizations)
+      .where(eq(organizations.workspaceId, workspace.id))
+      .orderBy(asc(organizations.name))
+      .limit(200),
     db
       .select({ id: deals.id, name: deals.name })
       .from(deals)
       .where(eq(deals.workspaceId, workspace.id))
       .orderBy(desc(deals.updatedAt))
       .limit(200),
+    getWorkspaceMembers(workspace.id),
   ]);
 
-  if (!project) {
+  if (!detail) {
     notFound();
   }
 
@@ -45,18 +47,19 @@ export default async function EditProjectPage({
       <Topbar
         crumbs={[
           { icon: Layers, label: "Projects" },
-          { label: project.name, href: `/projects/${id}` },
+          { label: detail.project.name },
           { label: "Edit" },
         ]}
       />
       <main className="screen flex-1 overflow-auto" style={{ minWidth: 0 }}>
         <div className="mx-auto max-w-3xl p-4 lg:p-8">
-          <ProjectForm
-            action={updateProject.bind(null, id)}
-            defaultValues={project}
+          <ProjectEditForm
+            action={updateProjectDetailsForm.bind(null, id)}
+            project={detail.project}
+            organizationOptions={orgOptions}
             dealOptions={dealOptions}
-            submitLabel="Save changes"
-            cancelHref={`/projects/${id}`}
+            memberOptions={members.map((m) => ({ id: m.id, name: m.name }))}
+            phases={detail.phases}
           />
         </div>
       </main>

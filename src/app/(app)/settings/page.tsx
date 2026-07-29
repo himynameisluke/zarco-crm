@@ -2,6 +2,7 @@ import Link from "next/link";
 import {
   Building2,
   ChevronRight,
+  LayoutTemplate,
   Plug,
   Settings as SettingsIcon,
   User,
@@ -39,6 +40,13 @@ const SECTIONS: SettingsCard[] = [
     title: "Team",
     description: "Members and invites. Multi-user support post-MVP.",
     status: { label: "Post-MVP", tone: "post-mvp" },
+  },
+  {
+    href: "/settings/projects",
+    icon: LayoutTemplate,
+    title: "Projects",
+    description: "Delivery templates and default project phases.",
+    status: { label: "Ready", tone: "ready" },
   },
   {
     href: "/settings/mcp",

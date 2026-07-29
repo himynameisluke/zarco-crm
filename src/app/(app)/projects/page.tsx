@@ -1,43 +1,47 @@
 import Link from "next/link";
-import { desc, eq } from "drizzle-orm";
-import { Layers, MoreHorizontal, Plus } from "lucide-react";
+import { asc, eq } from "drizzle-orm";
+import { Layers, Plus } from "lucide-react";
 
 import { db } from "@/lib/db";
-import { deals, projects } from "@/lib/db/schema";
+import { organizations } from "@/lib/db/schema";
 import { requireUser } from "@/lib/auth";
 import { requireCurrentWorkspace } from "@/lib/workspace/current";
+import { getWorkspaceMembers } from "@/lib/workspace/members";
 import { Topbar } from "@/components/nav/topbar";
-import { EmptyState } from "@/components/empty-state";
-import { RowActionsMenu } from "@/components/ui/row-actions-menu";
-import { formatDateShort, formatRelative } from "@/lib/format";
-import {
-  PROJECT_STATUS_ACCENT,
-  PROJECT_STATUS_LABELS,
-  type ProjectStatus,
-} from "./schema";
+import { boardDataset, listProjects, overviewMetrics, timelineDataset } from "@/lib/projects/queries";
+import { MetricCards } from "@/components/projects/list/metric-cards";
+import { ViewTabs } from "@/components/projects/list/view-tabs";
+import { TableView } from "@/components/projects/list/table-view";
+import { BoardView } from "@/components/projects/list/board-view";
+import { TimelineView } from "@/components/projects/list/timeline-view";
+import type { ProjectsQueryParams } from "@/components/projects/list/url";
 
-export default async function ProjectsPage() {
+const SORT_FIELDS = ["name", "target_date", "progress", "last_activity"] as const;
+
+function parseSort(v: string | undefined): (typeof SORT_FIELDS)[number] | undefined {
+  if (typeof v === "string" && (SORT_FIELDS as readonly string[]).includes(v)) {
+    return v as (typeof SORT_FIELDS)[number];
+  }
+  return undefined;
+}
+
+export default async function ProjectsPage({
+  searchParams,
+}: {
+  searchParams: Promise<ProjectsQueryParams>;
+}) {
   await requireUser();
   const workspace = await requireCurrentWorkspace();
+  const sp = await searchParams;
 
-  const rows = await db
-    .select({
-      id: projects.id,
-      name: projects.name,
-      status: projects.status,
-      startDate: projects.startDate,
-      endDate: projects.endDate,
-      updatedAt: projects.updatedAt,
-      dealId: projects.dealId,
-      dealName: deals.name,
-    })
-    .from(projects)
-    .leftJoin(deals, eq(projects.dealId, deals.id))
-    .where(eq(projects.workspaceId, workspace.id))
-    .orderBy(desc(projects.updatedAt))
-    .limit(200);
+  const view = sp.view === "board" || sp.view === "timeline" ? sp.view : "table";
+  const page = Math.max(1, Number.parseInt(sp.page ?? "1", 10) || 1);
+  const current: ProjectsQueryParams = { ...sp, view };
 
-  const total = rows.length;
+  // Metric row is real data, independent of whatever view/filters are
+  // active — it's the workspace's overall delivery state, not a summary
+  // of the current query.
+  const metrics = await overviewMetrics(workspace.id);
 
   return (
     <>
@@ -52,136 +56,73 @@ export default async function ProjectsPage() {
       />
 
       <main className="screen flex flex-1 flex-col" style={{ minWidth: 0 }}>
-        <div style={{ flex: 1, overflow: "auto" }}>
-          {rows.length === 0 ? (
-            <div style={{ padding: 32 }}>
-              <EmptyState
-                icon={Layers}
-                title="No projects yet"
-                description="Create a project to track post-sale delivery."
-                action={
-                  <Link href="/projects/new" className="btn btn-primary">
-                    <Plus size={13} />
-                    New project
-                  </Link>
-                }
-              />
-            </div>
-          ) : (
-            <table className="tbl">
-              <thead>
-                <tr>
-                  <th style={{ width: 280 }}>Name</th>
-                  <th style={{ width: 140 }}>Status</th>
-                  <th style={{ width: 240 }}>Linked deal</th>
-                  <th style={{ width: 120 }}>Start</th>
-                  <th style={{ width: 120 }}>End</th>
-                  <th style={{ width: 110, textAlign: "right" }}>Updated</th>
-                  <th style={{ width: 32 }} aria-label="Row actions" />
-                </tr>
-              </thead>
-              <tbody>
-                {rows.map((p) => (
-                  <tr key={p.id}>
-                    <td>
-                      <Link
-                        href={`/projects/${p.id}`}
-                        style={{
-                          color: "var(--ink)",
-                          fontWeight: 450,
-                          textDecoration: "none",
-                        }}
-                      >
-                        {p.name}
-                      </Link>
-                    </td>
-                    <td>
-                      <span
-                        style={{
-                          display: "inline-flex",
-                          alignItems: "center",
-                          gap: 6,
-                        }}
-                      >
-                        <span
-                          style={{
-                            width: 6,
-                            height: 6,
-                            borderRadius: 999,
-                            background: PROJECT_STATUS_ACCENT[p.status as ProjectStatus],
-                          }}
-                        />
-                        <span style={{ color: "var(--ink-2)" }}>
-                          {PROJECT_STATUS_LABELS[p.status as ProjectStatus]}
-                        </span>
-                      </span>
-                    </td>
-                    <td>
-                      {p.dealName && p.dealId ? (
-                        <Link
-                          href={`/deals/${p.dealId}`}
-                          style={{
-                            color: "var(--ink-2)",
-                            textDecoration: "none",
-                          }}
-                        >
-                          {p.dealName}
-                        </Link>
-                      ) : (
-                        <span style={{ color: "var(--ink-4)" }}>—</span>
-                      )}
-                    </td>
-                    <td
-                      className="t-mono"
-                      style={{ fontSize: 12, color: "var(--ink-3)" }}
-                    >
-                      {formatDateShort(p.startDate)}
-                    </td>
-                    <td
-                      className="t-mono"
-                      style={{ fontSize: 12, color: "var(--ink-3)" }}
-                    >
-                      {formatDateShort(p.endDate)}
-                    </td>
-                    <td
-                      className="t-mono"
-                      style={{
-                        textAlign: "right",
-                        fontSize: 11.5,
-                        color: "var(--ink-3)",
-                      }}
-                    >
-                      {formatRelative(p.updatedAt)}
-                    </td>
-                    <td>
-                      <RowActionsMenu
-                        viewHref={`/projects/${p.id}`}
-                        editHref={`/projects/${p.id}/edit`}
-                      />
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          )}
+        <MetricCards metrics={metrics} />
+
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            padding: "10px 16px",
+            borderBottom: view === "table" ? undefined : "1px solid var(--hairline)",
+          }}
+        >
+          <ViewTabs current={current} />
         </div>
 
-        {rows.length > 0 ? (
-          <div
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: 14,
-              padding: "8px 16px",
-              borderTop: "1px solid var(--hairline)",
-              fontSize: 11.5,
-              color: "var(--ink-3)",
-            }}
-          >
-            <span>{total.toLocaleString("en-GB")} project{total === 1 ? "" : "s"}</span>
-          </div>
-        ) : null}
+        {view === "table" ? (
+          <TableViewSection workspaceId={workspace.id} current={current} page={page} />
+        ) : view === "board" ? (
+          <BoardViewSection workspaceId={workspace.id} />
+        ) : (
+          <TimelineViewSection workspaceId={workspace.id} />
+        )}
       </main>
     </>
   );
+}
+
+async function TableViewSection({
+  workspaceId,
+  current,
+  page,
+}: {
+  workspaceId: string;
+  current: ProjectsQueryParams;
+  page: number;
+}) {
+  const [{ rows, total }, orgRows, members] = await Promise.all([
+    listProjects({
+      workspaceId,
+      q: current.q,
+      ownerId: current.ownerId,
+      organizationId: current.organizationId,
+      status: current.status,
+      health: current.health,
+      projectType: current.projectType,
+      sort: parseSort(current.sort),
+      sortDir: current.sortDir === "asc" ? "asc" : "desc",
+      page,
+    }),
+    db
+      .select({ id: organizations.id, name: organizations.name })
+      .from(organizations)
+      .where(eq(organizations.workspaceId, workspaceId))
+      .orderBy(asc(organizations.name))
+      .limit(500),
+    getWorkspaceMembers(workspaceId),
+  ]);
+
+  return (
+    <TableView rows={rows} total={total} page={page} current={current} organizations={orgRows} members={members} />
+  );
+}
+
+async function BoardViewSection({ workspaceId }: { workspaceId: string }) {
+  const { columns, projectsByColumn } = await boardDataset(workspaceId);
+  return <BoardView columns={columns} initialProjectsByColumn={projectsByColumn} />;
+}
+
+async function TimelineViewSection({ workspaceId }: { workspaceId: string }) {
+  const projects = await timelineDataset(workspaceId);
+  return <TimelineView projects={projects} />;
 }
