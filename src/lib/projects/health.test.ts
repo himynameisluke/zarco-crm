@@ -47,6 +47,24 @@ test("a completed milestone past its due date is NOT overdue", () => {
   expect(r.advisories).toEqual([]);
 });
 
+test("a milestone due exactly 'today' (local-midnight boundary) is NOT overdue", () => {
+  // Callers must anchor date-only dueDate/endDate to local midnight before
+  // calling healthAdvisories (see the param docs on HealthMilestoneInput /
+  // HealthProjectInput) — constructing both `now` and `dueDate` the same
+  // way here locks the boundary regardless of which timezone tests run in:
+  // a milestone due today, compared against "now" at that same local
+  // midnight, must not be flagged overdue (strict `<`, not `<=`).
+  const todayLocalMidnight = new Date(`2026-07-29T00:00:00`);
+  const r = healthAdvisories({
+    project: baseProject,
+    milestones: [{ name: "Go-live", dueDate: todayLocalMidnight, completedAt: null }],
+    risks: [],
+    tasks: [],
+    now: todayLocalMidnight,
+  });
+  expect(r.advisories).toEqual([]);
+});
+
 test("a milestone due in the future is not overdue", () => {
   const r = healthAdvisories({
     project: baseProject,

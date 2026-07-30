@@ -24,6 +24,13 @@ export type HealthAdvisory = {
 
 export type HealthMilestoneInput = {
   name: string;
+  /**
+   * Date-only value — callers MUST anchor it to LOCAL midnight
+   * (`new Date(`${dateStr}T00:00:00`)`, the same pattern table-view/
+   * timeline-view use) rather than parsing the raw "YYYY-MM-DD" string
+   * directly, which JS parses as UTC midnight and produces
+   * timezone-dependent early "overdue" false positives against `now`.
+   */
   dueDate: Date | null;
   completedAt: Date | null;
 };
@@ -45,6 +52,7 @@ export type HealthTaskInput = {
 export type HealthProjectInput = {
   health: ProjectHealthValue;
   status: string;
+  /** Date-only value — same local-midnight anchoring requirement as HealthMilestoneInput.dueDate above. */
   endDate: Date | null;
 };
 

@@ -3,6 +3,7 @@ import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 
 import { entityInWorkspace } from "../scope";
 import { requireMcpWorkspace, textResult } from "../context";
+import { isWorkspaceMember } from "@/lib/workspace/members";
 import { getProjectDetail, listOverdueProjectWork, listProjects } from "@/lib/projects/queries";
 import {
   createProjectCore,
@@ -22,6 +23,23 @@ import {
 } from "@/lib/projects/labels";
 
 const PROJECT_STATUS_VALUES = ["not_started", "in_progress", "on_hold", "completed"] as const;
+
+/**
+ * Same membership check the web actions run on owner/assignee ids
+ * (src/lib/workspace/members.ts) — without it MCP could assign a project
+ * owner/task assignee/risk owner from another workspace entirely. Returns
+ * the tools' standard invalid_reference error payload, or null when clear.
+ */
+async function memberReferenceError(
+  workspaceId: string,
+  userId: string | null | undefined,
+  field: string,
+): Promise<{ error: "invalid_reference"; message: string } | null> {
+  if (userId && !(await isWorkspaceMember(workspaceId, userId))) {
+    return { error: "invalid_reference", message: `${field} is not a member of this workspace` };
+  }
+  return null;
+}
 
 export function registerProjectTools(server: McpServer) {
   server.registerTool(
@@ -132,6 +150,8 @@ export function registerProjectTools(server: McpServer) {
       if (input.templateId && !(await entityInWorkspace("template", input.templateId, workspaceId))) {
         return textResult({ error: "invalid_reference", message: "templateId does not exist in this workspace" });
       }
+      const ownerErr = await memberReferenceError(workspaceId, input.ownerId, "ownerId");
+      if (ownerErr) return textResult(ownerErr);
 
       const { id } = await createProjectCore({
         workspaceId,
@@ -200,6 +220,8 @@ export function registerProjectTools(server: McpServer) {
       ) {
         return textResult({ error: "invalid_reference", message: "currentPhaseId does not exist in this workspace" });
       }
+      const ownerErr = await memberReferenceError(workspaceId, patch.ownerId, "ownerId");
+      if (ownerErr) return textResult(ownerErr);
 
       const result = await updateProjectCore({
         workspaceId,
@@ -246,6 +268,8 @@ export function registerProjectTools(server: McpServer) {
       if (input.milestoneId && !(await entityInWorkspace("milestone", input.milestoneId, workspaceId))) {
         return textResult({ error: "invalid_reference", message: "milestoneId does not exist in this workspace" });
       }
+      const assigneeErr = await memberReferenceError(workspaceId, input.assignedTo, "assignedTo");
+      if (assigneeErr) return textResult(assigneeErr);
 
       const { id } = await createProjectTaskCore({
         workspaceId,
@@ -303,6 +327,8 @@ export function registerProjectTools(server: McpServer) {
       if (!(await entityInWorkspace("project", input.projectId, workspaceId))) {
         return textResult({ error: "invalid_reference", message: "projectId does not exist in this workspace" });
       }
+      const riskOwnerErr = await memberReferenceError(workspaceId, input.ownerId, "ownerId");
+      if (riskOwnerErr) return textResult(riskOwnerErr);
 
       const { id } = await raiseRiskCore({
         workspaceId,

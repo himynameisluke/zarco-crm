@@ -16,7 +16,7 @@ import {
   tasks,
 } from "@/lib/db/schema";
 import { expandTemplate, type TemplateItemInput } from "./template";
-import { moveProject } from "./board";
+import { moveProject, columnForProject, COMPLETE_COLUMN, UNPHASED_COLUMN } from "./board";
 import { SEED_TEMPLATES } from "./templates-seed";
 import type { ProjectHealthLabelValue, ProjectStatusValue } from "./labels";
 
@@ -414,9 +414,16 @@ export async function moveProjectOnBoardCore(args: {
       newPhaseName ??
       phaseRows.find((p) => p.id === currentPhaseId)?.name ??
       (targetColumn === "__complete" ? "Complete" : targetColumn === "__unphased" ? "Unphased" : targetColumn);
-    const fromName = project.currentPhaseId
-      ? phaseRows.find((p) => p.id === project.currentPhaseId)?.name ?? "Unknown phase"
-      : "Unphased";
+
+    // Derive the pre-move column the same way the board itself does
+    // (status === 'completed' wins over whatever currentPhaseId happens to
+    // still hold) — a project marked complete off-board keeps its old
+    // currentPhaseId, so reading that raw id here would mislabel an
+    // un-complete move as "came from <stale phase>" instead of "Complete".
+    const phaseIdToName = new Map(phaseRows.map((p) => [p.id, p.name]));
+    const fromColumn = columnForProject(project, phaseIdToName);
+    const fromName =
+      fromColumn === COMPLETE_COLUMN ? "Complete" : fromColumn === UNPHASED_COLUMN ? "Unphased" : fromColumn;
 
     await tx.insert(activities).values({
       workspaceId,
@@ -426,7 +433,7 @@ export async function moveProjectOnBoardCore(args: {
       subjectId: activitySubjectId(projectId),
       subject: `${fromName} → ${toName}`,
       body: `Project "${project.name}" moved on the board from ${fromName} to ${toName}`,
-      metadata: { kind: "phase", from: project.currentPhaseId, to: currentPhaseId },
+      metadata: { kind: "phase", from: fromColumn, to: currentPhaseId },
       createdBy: userId,
     });
 

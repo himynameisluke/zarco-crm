@@ -34,15 +34,22 @@ export default async function ProjectDetailPage({
 
   const progress = effectiveProgress(detail.project, detail.tasks);
 
+  // endDate/dueDate are date-only ("YYYY-MM-DD") strings — anchor to local
+  // midnight the same way table-view/timeline-view do, not `new Date(str)`
+  // (UTC midnight), which produces timezone-dependent early overdue false
+  // positives against `now`. See healthAdvisories' param docs.
+  const localMidnight = (dateStr: string | null): Date | null =>
+    dateStr ? new Date(`${dateStr}T00:00:00`) : null;
+
   const advisories = healthAdvisories({
     project: {
       health: detail.project.health as ProjectHealthValue,
       status: detail.project.status,
-      endDate: detail.project.endDate ? new Date(detail.project.endDate) : null,
+      endDate: localMidnight(detail.project.endDate),
     },
     milestones: detail.milestones.map((m) => ({
       name: m.name,
-      dueDate: m.dueDate ? new Date(m.dueDate) : null,
+      dueDate: localMidnight(m.dueDate),
       completedAt: m.completedAt,
     })),
     risks: detail.risks.map((r) => ({
