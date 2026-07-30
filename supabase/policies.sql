@@ -171,31 +171,37 @@ create policy "workspace_member_all" on public.inbox_items
 -- workspace_id (denormalized off the project, not joined through it), so
 -- the check is the same simple membership test, no join to `projects`
 -- required.
+drop policy if exists "workspace_member_all" on public.project_phases;
 create policy "workspace_member_all" on public.project_phases
   for all to authenticated
   using (workspace_id in (select workspace_id from public.workspace_members where user_id = auth.uid()))
   with check (workspace_id in (select workspace_id from public.workspace_members where user_id = auth.uid()));
 
+drop policy if exists "workspace_member_all" on public.project_milestones;
 create policy "workspace_member_all" on public.project_milestones
   for all to authenticated
   using (workspace_id in (select workspace_id from public.workspace_members where user_id = auth.uid()))
   with check (workspace_id in (select workspace_id from public.workspace_members where user_id = auth.uid()));
 
+drop policy if exists "workspace_member_all" on public.project_risks;
 create policy "workspace_member_all" on public.project_risks
   for all to authenticated
   using (workspace_id in (select workspace_id from public.workspace_members where user_id = auth.uid()))
   with check (workspace_id in (select workspace_id from public.workspace_members where user_id = auth.uid()));
 
+drop policy if exists "workspace_member_all" on public.project_links;
 create policy "workspace_member_all" on public.project_links
   for all to authenticated
   using (workspace_id in (select workspace_id from public.workspace_members where user_id = auth.uid()))
   with check (workspace_id in (select workspace_id from public.workspace_members where user_id = auth.uid()));
 
+drop policy if exists "workspace_member_all" on public.project_templates;
 create policy "workspace_member_all" on public.project_templates
   for all to authenticated
   using (workspace_id in (select workspace_id from public.workspace_members where user_id = auth.uid()))
   with check (workspace_id in (select workspace_id from public.workspace_members where user_id = auth.uid()));
 
+drop policy if exists "workspace_member_all" on public.project_template_items;
 create policy "workspace_member_all" on public.project_template_items
   for all to authenticated
   using (workspace_id in (select workspace_id from public.workspace_members where user_id = auth.uid()))
@@ -204,6 +210,7 @@ create policy "workspace_member_all" on public.project_template_items
 -- project_settings' PK IS workspace_id (no separate id column) — the check
 -- uses the table's own primary key column directly instead of a workspace_id
 -- lookup on itself, same predicate either way.
+drop policy if exists "workspace_member_all" on public.project_settings;
 create policy "workspace_member_all" on public.project_settings
   for all to authenticated
   using (workspace_id in (select workspace_id from public.workspace_members where user_id = auth.uid()))
