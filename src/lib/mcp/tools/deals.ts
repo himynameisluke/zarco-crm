@@ -15,17 +15,12 @@ import { auditMcpWrite } from "../audit";
 import { requireMcpWorkspace, textResult } from "../context";
 import { entityInWorkspace } from "../scope";
 import { stageTransitionValues } from "@/lib/deals/stage";
-
-const STAGE_VALUES = [
-  "lead",
-  "qualified",
-  "proposal",
-  "negotiation",
-  "won",
-  "lost",
-] as const;
-
-const TYPE_VALUES = ["engagement", "sale", "project", "retainer"] as const;
+import {
+  planDealUpdate,
+  STAGE_VALUES,
+  TYPE_VALUES,
+  UPDATE_DEAL_INPUT,
+} from "./deal-update";
 
 export function registerDealTools(server: McpServer) {
   server.registerTool(
@@ -332,25 +327,15 @@ export function registerDealTools(server: McpServer) {
     "update_deal",
     {
       description:
-        "Update an existing deal's editable fields. Pass only what you want to change — anything omitted is left alone. Use update_deal_stage for stage moves (it generates a richer audit entry).",
-      inputSchema: {
-        id: z.string().uuid(),
-        name: z.string().trim().min(1).max(200).optional(),
-        type: z.enum(TYPE_VALUES).optional(),
-        valuePence: z.number().int().min(0).max(1_000_000_000_00).optional(),
-        currency: z.string().trim().length(3).optional(),
-        closeDate: z
-          .string()
-          .regex(/^\d{4}-\d{2}-\d{2}$/, "Use YYYY-MM-DD")
-          .nullable()
-          .optional(),
-        organizationId: z.string().uuid().nullable().optional(),
-        primaryContactId: z.string().uuid().nullable().optional(),
-      },
+        "Update an existing deal's editable fields, including stage. Pass only what you want to change — anything omitted is left alone. Providing no editable fields is an error. For a stage move with an audit reason, prefer update_deal_stage.",
+      inputSchema: UPDATE_DEAL_INPUT,
       annotations: { destructiveHint: false, idempotentHint: true },
     },
     async ({ id, ...patch }, { authInfo }) => {
       const { userId, workspaceId } = await requireMcpWorkspace(authInfo);
+
+      const plan = planDealUpdate(patch);
+      if ("error" in plan) return textResult(plan);
 
       if (
         patch.organizationId &&
@@ -371,16 +356,23 @@ export function registerDealTools(server: McpServer) {
         });
       }
 
-      const updateValues: Record<string, unknown> = { updatedAt: new Date() };
-      if (patch.name !== undefined) updateValues.name = patch.name;
-      if (patch.type !== undefined) updateValues.type = patch.type;
-      if (patch.valuePence !== undefined) updateValues.valuePence = patch.valuePence;
-      if (patch.currency !== undefined) updateValues.currency = patch.currency;
-      if (patch.closeDate !== undefined) updateValues.closeDate = patch.closeDate;
-      if (patch.organizationId !== undefined)
-        updateValues.organizationId = patch.organizationId;
-      if (patch.primaryContactId !== undefined)
-        updateValues.primaryContactId = patch.primaryContactId;
+      const [before] = await db
+        .select({ name: deals.name, stage: deals.stage })
+        .from(deals)
+        .where(and(eq(deals.id, id), eq(deals.workspaceId, workspaceId)))
+        .limit(1);
+      if (!before) return textResult({ error: "not_found", id });
+
+      const updateValues = { ...plan.values };
+      const stageMove =
+        plan.stageMove && plan.stageMove !== before.stage ? plan.stageMove : null;
+      if (stageMove) Object.assign(updateValues, stageTransitionValues(stageMove));
+
+      if (!stageMove && plan.changedFields.length === 0) {
+        // Only a same-stage "move" was requested; touching the row would
+        // recreate the phantom update this handler exists to prevent.
+        return textResult({ unchanged: { id, stage: before.stage } });
+      }
 
       const [updated] = await db
         .update(deals)
@@ -390,22 +382,29 @@ export function registerDealTools(server: McpServer) {
 
       if (!updated) return textResult({ error: "not_found", id });
 
-      const changedFields = Object.keys(updateValues).filter(
-        (k) => k !== "updatedAt",
-      );
-
-      await auditMcpWrite({
-        workspaceId,
-        type: "note",
-        subjectType: "deal",
-        subjectId: id,
-        subject: `Updated deal ${updated.name}`,
-        body:
-          changedFields.length > 0
-            ? `Changed: ${changedFields.join(", ")}`
-            : undefined,
-        userId,
-      });
+      if (plan.changedFields.length > 0) {
+        await auditMcpWrite({
+          workspaceId,
+          type: "note",
+          subjectType: "deal",
+          subjectId: id,
+          subject: `Updated deal ${updated.name}`,
+          body: `Changed: ${plan.changedFields.join(", ")}`,
+          userId,
+        });
+      }
+      if (stageMove) {
+        await auditMcpWrite({
+          workspaceId,
+          type: "status_change",
+          subjectType: "deal",
+          subjectId: id,
+          subject: `${before.stage} → ${stageMove}`,
+          body: `Deal "${before.name}" moved from ${before.stage} to ${stageMove}`,
+          userId,
+          metadata: { fromStage: before.stage, toStage: stageMove },
+        });
+      }
 
       return textResult({ updated });
     },
