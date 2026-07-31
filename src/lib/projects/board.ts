@@ -14,11 +14,32 @@ export type BoardColumn = {
   label: string;
 };
 
-/** Column order: Unphased holding pen, then the workspace's phase sequence, then Complete. */
-export function boardColumns(defaultPhases: string[]): BoardColumn[] {
+/**
+ * Column order: Unphased holding pen, then the workspace's phase sequence,
+ * then any "extra" phase names — real current-phase names in play (e.g.
+ * from a template that isn't the workspace's default sequence, like "Agent
+ * configuration") that aren't already one of defaultPhases — then Complete.
+ *
+ * Without the extras union, a project whose currentPhaseId resolves to a
+ * name outside defaultPhases still buckets under that name in
+ * projectsByColumn (see queries.ts's boardDataset), but no column exists
+ * for it, so its card renders in no visible column at all. extraPhaseNames
+ * is deduplicated and sorted for a stable, deterministic order — caller
+ * passes the actual current-phase names in play across the rendered
+ * projects (see boardDataset).
+ */
+export function boardColumns(
+  defaultPhases: string[],
+  extraPhaseNames: string[] = [],
+): BoardColumn[] {
+  const defaultSet = new Set(defaultPhases);
+  const extras = Array.from(new Set(extraPhaseNames))
+    .filter((name) => !defaultSet.has(name))
+    .sort((a, b) => a.localeCompare(b));
   return [
     { key: UNPHASED_COLUMN, label: "Unphased" },
     ...defaultPhases.map((name) => ({ key: name, label: name })),
+    ...extras.map((name) => ({ key: name, label: name })),
     { key: COMPLETE_COLUMN, label: "Complete" },
   ];
 }

@@ -22,10 +22,13 @@ export async function addProjectLink(projectId: string, _: unknown, formData: Fo
     return { error: "Project not found in this workspace" };
   }
 
+  // Sweep: formData.get() returns null for any optional field a given form
+  // doesn't render — normalize to undefined so `.optional()` treats it as
+  // absent instead of failing validation.
   const parsed = projectLinkFormSchema.safeParse({
     title: formData.get("title"),
     url: formData.get("url"),
-    kind: formData.get("kind"),
+    kind: formData.get("kind") || undefined,
   });
   if (!parsed.success) {
     return { error: parsed.error.issues[0]?.message ?? "Invalid input" };

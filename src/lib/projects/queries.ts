@@ -227,7 +227,18 @@ export async function boardDataset(
   const taskAggByProject = new Map(taskAgg.map((r) => [r.subjectId, r]));
   const phaseIdToName = new Map(phaseRows.map((p) => [p.id, p.name]));
 
-  const columns = boardColumns(settings.defaultPhases);
+  // A project's current phase can come from a template that isn't the
+  // workspace's default phase sequence (e.g. "Agent configuration") — union
+  // those actual names in as extra columns so every rendered project always
+  // has somewhere to land (see boardColumns' doc comment).
+  const extraPhaseNames = new Set<string>();
+  for (const p of projectRows) {
+    if (!p.currentPhaseId) continue;
+    const name = phaseIdToName.get(p.currentPhaseId);
+    if (name) extraPhaseNames.add(name);
+  }
+
+  const columns = boardColumns(settings.defaultPhases, Array.from(extraPhaseNames));
   const projectsByColumn: Record<string, BoardCard[]> = {};
   for (const col of columns) projectsByColumn[col.key] = [];
 

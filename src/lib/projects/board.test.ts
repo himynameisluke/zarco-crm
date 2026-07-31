@@ -26,6 +26,68 @@ test("boardColumns handles an empty default phase list", () => {
   expect(cols.map((c) => c.key)).toEqual([UNPHASED_COLUMN, COMPLETE_COLUMN]);
 });
 
+test("boardColumns unions in an extra phase name not in defaultPhases, after the defaults and before Complete", () => {
+  const cols = boardColumns(DEFAULT_PHASES, ["Agent configuration"]);
+  expect(cols.map((c) => c.key)).toEqual([
+    UNPHASED_COLUMN,
+    "Discovery",
+    "Build",
+    "Go-Live",
+    "Agent configuration",
+    COMPLETE_COLUMN,
+  ]);
+});
+
+test("boardColumns: a project in a non-default phase gets a rendered column (regression — used to render in no column at all)", () => {
+  const cols = boardColumns(DEFAULT_PHASES, ["Agent configuration"]);
+  const phaseIdToName = new Map([["ph-x", "Agent configuration"]]);
+  const column = columnForProject({ currentPhaseId: "ph-x", status: "in_progress" }, phaseIdToName);
+  expect(cols.some((c) => c.key === column)).toBe(true);
+});
+
+test("boardColumns dedupes extras and ignores ones that duplicate a default phase name", () => {
+  const cols = boardColumns(DEFAULT_PHASES, ["Extra", "Extra", "Discovery"]);
+  expect(cols.map((c) => c.key)).toEqual([
+    UNPHASED_COLUMN,
+    "Discovery",
+    "Build",
+    "Go-Live",
+    "Extra",
+    COMPLETE_COLUMN,
+  ]);
+});
+
+test("boardColumns orders multiple extras deterministically (alphabetical) regardless of input order", () => {
+  const a = boardColumns(DEFAULT_PHASES, ["Zeta phase", "Agent configuration"]);
+  const b = boardColumns(DEFAULT_PHASES, ["Agent configuration", "Zeta phase"]);
+  expect(a.map((c) => c.key)).toEqual(b.map((c) => c.key));
+  expect(a.map((c) => c.key)).toEqual([
+    UNPHASED_COLUMN,
+    "Discovery",
+    "Build",
+    "Go-Live",
+    "Agent configuration",
+    "Zeta phase",
+    COMPLETE_COLUMN,
+  ]);
+});
+
+test("boardColumns keeps Complete last even with extras present", () => {
+  const cols = boardColumns(DEFAULT_PHASES, ["Agent configuration", "Zeta phase"]);
+  expect(cols[cols.length - 1].key).toBe(COMPLETE_COLUMN);
+});
+
+test("boardColumns with no extras keeps Unphased behavior unchanged", () => {
+  const cols = boardColumns(DEFAULT_PHASES, []);
+  expect(cols.map((c) => c.key)).toEqual([
+    UNPHASED_COLUMN,
+    "Discovery",
+    "Build",
+    "Go-Live",
+    COMPLETE_COLUMN,
+  ]);
+});
+
 test("columnForProject: completed status always lands in Complete regardless of phase", () => {
   const map = new Map([["p1", "Build"]]);
   expect(

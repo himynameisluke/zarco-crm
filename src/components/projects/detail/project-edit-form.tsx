@@ -62,7 +62,7 @@ export function ProjectEditForm({
           </div>
           <div className="grid gap-2">
             <Label htmlFor="status">Status</Label>
-            <Select name="status" defaultValue={project.status}>
+            <Select name="status" defaultValue={project.status} items={PROJECT_STATUS_LABELS}>
               <SelectTrigger id="status" className="w-full" disabled={pending}>
                 <SelectValue />
               </SelectTrigger>
@@ -77,7 +77,7 @@ export function ProjectEditForm({
           </div>
           <div className="grid gap-2">
             <Label htmlFor="health">Health</Label>
-            <Select name="health" defaultValue={project.health}>
+            <Select name="health" defaultValue={project.health} items={PROJECT_HEALTH_LABELS}>
               <SelectTrigger id="health" className="w-full" disabled={pending}>
                 <SelectValue />
               </SelectTrigger>
@@ -92,7 +92,11 @@ export function ProjectEditForm({
           </div>
           <div className="grid gap-2">
             <Label htmlFor="projectType">Type</Label>
-            <Select name="projectType" defaultValue={project.projectType ?? ""}>
+            <Select
+              name="projectType"
+              defaultValue={project.projectType ?? ""}
+              items={PROJECT_TYPE_LABELS}
+            >
               <SelectTrigger id="projectType" className="w-full" disabled={pending}>
                 <SelectValue placeholder="Not set" />
               </SelectTrigger>
@@ -107,7 +111,11 @@ export function ProjectEditForm({
           </div>
           <div className="grid gap-2">
             <Label htmlFor="ownerId">Owner</Label>
-            <Select name="ownerId" defaultValue={project.ownerId ?? ""}>
+            <Select
+              name="ownerId"
+              defaultValue={project.ownerId ?? ""}
+              items={memberOptions.map((m) => ({ value: m.id, label: m.name }))}
+            >
               <SelectTrigger id="ownerId" className="w-full" disabled={pending}>
                 <SelectValue placeholder="Unassigned" />
               </SelectTrigger>
@@ -123,7 +131,11 @@ export function ProjectEditForm({
           {phases.length > 0 ? (
             <div className="grid gap-2">
               <Label htmlFor="currentPhaseId">Current phase</Label>
-              <Select name="currentPhaseId" defaultValue={project.currentPhaseId ?? ""}>
+              <Select
+                name="currentPhaseId"
+                defaultValue={project.currentPhaseId ?? ""}
+                items={phases.map((p) => ({ value: p.id, label: p.name }))}
+              >
                 <SelectTrigger id="currentPhaseId" className="w-full" disabled={pending}>
                   <SelectValue placeholder="Unphased" />
                 </SelectTrigger>

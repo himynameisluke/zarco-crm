@@ -40,12 +40,16 @@ export async function createProjectMilestone(projectId: string, _: unknown, form
     return { error: "Project not found in this workspace" };
   }
 
+  // Sweep: formData.get() returns null for any optional field a given form
+  // doesn't render — `.optional()` only treats undefined as absent, so
+  // every optional field here needs `|| undefined` (same convention as
+  // the other project action files).
   const parsed = projectMilestoneFormSchema.safeParse({
     name: formData.get("name"),
-    description: formData.get("description"),
-    dueDate: formData.get("dueDate"),
-    phaseId: formData.get("phaseId"),
-    ownerId: formData.get("ownerId"),
+    description: formData.get("description") || undefined,
+    dueDate: formData.get("dueDate") || undefined,
+    phaseId: formData.get("phaseId") || undefined,
+    ownerId: formData.get("ownerId") || undefined,
   });
   if (!parsed.success) {
     return { error: parsed.error.issues[0]?.message ?? "Invalid input" };
@@ -78,12 +82,16 @@ export async function updateProjectMilestone(
 ) {
   const workspace = await requireCurrentWorkspace();
 
+  // Sweep: formData.get() returns null for any optional field a given form
+  // doesn't render — `.optional()` only treats undefined as absent, so
+  // every optional field here needs `|| undefined` (same convention as
+  // the other project action files).
   const parsed = projectMilestoneFormSchema.safeParse({
     name: formData.get("name"),
-    description: formData.get("description"),
-    dueDate: formData.get("dueDate"),
-    phaseId: formData.get("phaseId"),
-    ownerId: formData.get("ownerId"),
+    description: formData.get("description") || undefined,
+    dueDate: formData.get("dueDate") || undefined,
+    phaseId: formData.get("phaseId") || undefined,
+    ownerId: formData.get("ownerId") || undefined,
   });
   if (!parsed.success) {
     return { error: parsed.error.issues[0]?.message ?? "Invalid input" };

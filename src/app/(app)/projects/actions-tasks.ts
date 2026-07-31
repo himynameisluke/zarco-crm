@@ -52,14 +52,19 @@ export async function createProjectTask(projectId: string, _: unknown, formData:
     return { error: "Project not found in this workspace" };
   }
 
+  // formData.get() returns null for a field a given form (e.g. the quick-add
+  // task input, which only renders "title") never rendered — `.optional()`
+  // treats undefined as absent but rejects a bare null, so every optional
+  // field here needs the `|| undefined` normalization already used for
+  // "priority" below.
   const parsed = projectTaskFormSchema.safeParse({
     title: formData.get("title"),
-    description: formData.get("description"),
-    dueAt: formData.get("dueAt"),
+    description: formData.get("description") || undefined,
+    dueAt: formData.get("dueAt") || undefined,
     priority: formData.get("priority") || undefined,
-    assignedTo: formData.get("assignedTo"),
-    projectPhaseId: formData.get("projectPhaseId"),
-    milestoneId: formData.get("milestoneId"),
+    assignedTo: formData.get("assignedTo") || undefined,
+    projectPhaseId: formData.get("projectPhaseId") || undefined,
+    milestoneId: formData.get("milestoneId") || undefined,
   });
   if (!parsed.success) {
     return { error: parsed.error.issues[0]?.message ?? "Invalid input" };
@@ -91,14 +96,19 @@ export async function createProjectTask(projectId: string, _: unknown, formData:
 export async function updateProjectTask(id: string, projectId: string, _: unknown, formData: FormData) {
   const workspace = await requireCurrentWorkspace();
 
+  // formData.get() returns null for a field a given form (e.g. the quick-add
+  // task input, which only renders "title") never rendered — `.optional()`
+  // treats undefined as absent but rejects a bare null, so every optional
+  // field here needs the `|| undefined` normalization already used for
+  // "priority" below.
   const parsed = projectTaskFormSchema.safeParse({
     title: formData.get("title"),
-    description: formData.get("description"),
-    dueAt: formData.get("dueAt"),
+    description: formData.get("description") || undefined,
+    dueAt: formData.get("dueAt") || undefined,
     priority: formData.get("priority") || undefined,
-    assignedTo: formData.get("assignedTo"),
-    projectPhaseId: formData.get("projectPhaseId"),
-    milestoneId: formData.get("milestoneId"),
+    assignedTo: formData.get("assignedTo") || undefined,
+    projectPhaseId: formData.get("projectPhaseId") || undefined,
+    milestoneId: formData.get("milestoneId") || undefined,
   });
   if (!parsed.success) {
     return { error: parsed.error.issues[0]?.message ?? "Invalid input" };

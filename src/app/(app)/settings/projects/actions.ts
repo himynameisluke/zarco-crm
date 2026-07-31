@@ -24,10 +24,13 @@ function nullable(value: string | undefined | null): string | null {
 }
 
 function parseTemplateFormData(formData: FormData) {
+  // Sweep: formData.get() returns null for any optional field a given form
+  // doesn't render — normalize to undefined so `.optional()` treats it as
+  // absent instead of failing validation.
   return projectTemplateFormSchema.safeParse({
     name: formData.get("name"),
-    description: formData.get("description"),
-    projectType: formData.get("projectType"),
+    description: formData.get("description") || undefined,
+    projectType: formData.get("projectType") || undefined,
   });
 }
 

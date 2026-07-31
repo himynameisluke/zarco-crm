@@ -23,14 +23,18 @@ export async function raiseProjectRisk(projectId: string, _: unknown, formData: 
     return { error: "Project not found in this workspace" };
   }
 
+  // The Likelihood field is removed from the DOM entirely when kind is
+  // "blocker", so formData.get("likelihood") comes back null — `.optional()`
+  // treats undefined as absent but rejects a bare null, so this (and every
+  // other optional field here) needs `|| undefined`.
   const parsed = projectRiskFormSchema.safeParse({
     kind: formData.get("kind"),
     title: formData.get("title"),
-    description: formData.get("description"),
+    description: formData.get("description") || undefined,
     severity: formData.get("severity"),
-    likelihood: formData.get("likelihood"),
-    ownerId: formData.get("ownerId"),
-    mitigation: formData.get("mitigation"),
+    likelihood: formData.get("likelihood") || undefined,
+    ownerId: formData.get("ownerId") || undefined,
+    mitigation: formData.get("mitigation") || undefined,
   });
   if (!parsed.success) {
     return { error: parsed.error.issues[0]?.message ?? "Invalid input" };
@@ -61,14 +65,18 @@ export async function raiseProjectRisk(projectId: string, _: unknown, formData: 
 export async function updateProjectRisk(id: string, projectId: string, _: unknown, formData: FormData) {
   const workspace = await requireCurrentWorkspace();
 
+  // The Likelihood field is removed from the DOM entirely when kind is
+  // "blocker", so formData.get("likelihood") comes back null — `.optional()`
+  // treats undefined as absent but rejects a bare null, so this (and every
+  // other optional field here) needs `|| undefined`.
   const parsed = projectRiskFormSchema.safeParse({
     kind: formData.get("kind"),
     title: formData.get("title"),
-    description: formData.get("description"),
+    description: formData.get("description") || undefined,
     severity: formData.get("severity"),
-    likelihood: formData.get("likelihood"),
-    ownerId: formData.get("ownerId"),
-    mitigation: formData.get("mitigation"),
+    likelihood: formData.get("likelihood") || undefined,
+    ownerId: formData.get("ownerId") || undefined,
+    mitigation: formData.get("mitigation") || undefined,
   });
   if (!parsed.success) {
     return { error: parsed.error.issues[0]?.message ?? "Invalid input" };

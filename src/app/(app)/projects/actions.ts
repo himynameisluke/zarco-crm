@@ -145,6 +145,34 @@ function nullableWizard(value: string | undefined): string | null {
 }
 
 /**
+ * Reads a nullable field for updateProjectDetails with true PATCH
+ * semantics: a key the caller never wrote into the FormData stays
+ * `undefined` so downstream (projectDetailsUpdateSchema -> updateProjectCore)
+ * leaves that column untouched entirely. patchProjectField only sets the
+ * keys the caller actually passed, so `formData.has(key)` is exactly "was
+ * this field part of this edit" — e.g. a phase-stepper click only sets
+ * "currentPhaseId", so every other field here must resolve to undefined,
+ * not null. A key that IS present but blank ("") is an explicit clear for
+ * a nullable field (e.g. unsetting the phase, or blanking the edit form's
+ * organization combobox) and resolves to null.
+ */
+function presentNullable(formData: FormData, key: string): string | null | undefined {
+  if (!formData.has(key)) return undefined;
+  const raw = formData.get(key);
+  if (typeof raw !== "string") return undefined;
+  const trimmed = raw.trim();
+  return trimmed.length ? trimmed : null;
+}
+
+/** Same presence semantics as presentNullable(), for the numeric progressManual override. */
+function presentNumber(formData: FormData, key: string): number | null | undefined {
+  if (!formData.has(key)) return undefined;
+  const raw = formData.get(key);
+  if (raw === "" || raw == null) return null;
+  return Number(raw);
+}
+
+/**
  * Creates a project from the wizard payload. When templateId is set, the
  * template's phases/milestones/tasks are expanded (expandTemplate) and
  * inserted alongside the project in ONE transaction (see
@@ -155,20 +183,26 @@ export async function createProjectWizard(_: unknown, formData: FormData) {
   const user = await requireUser();
   const workspace = await requireCurrentWorkspace();
 
+  // formData.get() returns null (not undefined) for a field the wizard step
+  // never rendered — `.optional()` in projectWizardSchema only treats
+  // undefined as absent, so a bare formData.get() here fails validation on
+  // every field the current step left out of the DOM. `|| undefined`
+  // normalizes null (and "") to undefined, same convention already used
+  // for status/health below.
   const parsed = projectWizardSchema.safeParse({
     name: formData.get("name"),
-    organizationId: formData.get("organizationId"),
-    dealId: formData.get("dealId"),
-    ownerId: formData.get("ownerId"),
+    organizationId: formData.get("organizationId") || undefined,
+    dealId: formData.get("dealId") || undefined,
+    ownerId: formData.get("ownerId") || undefined,
     status: formData.get("status") || undefined,
     health: formData.get("health") || undefined,
-    projectType: formData.get("projectType"),
-    description: formData.get("description"),
-    successCriteria: formData.get("successCriteria"),
-    startDate: formData.get("startDate"),
-    endDate: formData.get("endDate"),
-    notes: formData.get("notes"),
-    templateId: formData.get("templateId"),
+    projectType: formData.get("projectType") || undefined,
+    description: formData.get("description") || undefined,
+    successCriteria: formData.get("successCriteria") || undefined,
+    startDate: formData.get("startDate") || undefined,
+    endDate: formData.get("endDate") || undefined,
+    notes: formData.get("notes") || undefined,
+    templateId: formData.get("templateId") || undefined,
   });
   if (!parsed.success) {
     return { error: parsed.error.issues[0]?.message ?? "Invalid input" };
@@ -229,20 +263,17 @@ export async function updateProjectDetails(id: string, formData: FormData) {
     name: formData.get("name") || undefined,
     status: formData.get("status") || undefined,
     health: formData.get("health") || undefined,
-    currentPhaseId: nullableWizard((formData.get("currentPhaseId") as string) ?? undefined),
-    organizationId: nullableWizard((formData.get("organizationId") as string) ?? undefined),
-    dealId: nullableWizard((formData.get("dealId") as string) ?? undefined),
-    ownerId: nullableWizard((formData.get("ownerId") as string) ?? undefined),
-    projectType: nullableWizard((formData.get("projectType") as string) ?? undefined),
-    description: nullableWizard((formData.get("description") as string) ?? undefined),
-    successCriteria: nullableWizard((formData.get("successCriteria") as string) ?? undefined),
-    progressManual:
-      formData.get("progressManual") === "" || formData.get("progressManual") == null
-        ? null
-        : Number(formData.get("progressManual")),
-    startDate: nullableWizard((formData.get("startDate") as string) ?? undefined),
-    endDate: nullableWizard((formData.get("endDate") as string) ?? undefined),
-    notes: nullableWizard((formData.get("notes") as string) ?? undefined),
+    currentPhaseId: presentNullable(formData, "currentPhaseId"),
+    organizationId: presentNullable(formData, "organizationId"),
+    dealId: presentNullable(formData, "dealId"),
+    ownerId: presentNullable(formData, "ownerId"),
+    projectType: presentNullable(formData, "projectType"),
+    description: presentNullable(formData, "description"),
+    successCriteria: presentNullable(formData, "successCriteria"),
+    progressManual: presentNumber(formData, "progressManual"),
+    startDate: presentNullable(formData, "startDate"),
+    endDate: presentNullable(formData, "endDate"),
+    notes: presentNullable(formData, "notes"),
   });
   if (!parsed.success) {
     return { error: parsed.error.issues[0]?.message ?? "Invalid input" };

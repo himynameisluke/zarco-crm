@@ -276,6 +276,7 @@ export function ProjectHeader({
             onValueChange={(v) => {
               if (typeof v === "string") patch({ status: v as ProjectStatusValue });
             }}
+            items={PROJECT_STATUS_LABELS}
           >
             <SelectTrigger size="sm" disabled={pending} className="w-36">
               <SelectValue />
@@ -297,6 +298,7 @@ export function ProjectHeader({
             onValueChange={(v) => {
               if (typeof v === "string") patch({ health: v as ProjectHealthLabelValue });
             }}
+            items={PROJECT_HEALTH_LABELS}
           >
             <SelectTrigger size="sm" disabled={pending} className="w-32">
               <SelectValue />
@@ -348,6 +350,7 @@ export function ProjectHeader({
             onValueChange={(v) => {
               if (typeof v === "string") patch({ ownerId: v });
             }}
+            items={members.map((m) => ({ value: m.id, label: m.name }))}
           >
             <SelectTrigger size="sm" disabled={pending} className="w-full">
               <SelectValue placeholder="Unassigned" />

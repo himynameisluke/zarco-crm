@@ -142,6 +142,7 @@ export function ProjectWizard({
               name="projectType"
               value={projectType}
               onValueChange={(v) => setProjectType(v as ProjectTypeValue)}
+              items={PROJECT_TYPE_LABELS}
             >
               <SelectTrigger id="projectType" className="w-full" disabled={pending}>
                 <SelectValue placeholder="Not set" />
@@ -163,6 +164,7 @@ export function ProjectWizard({
               onValueChange={(v) => {
                 if (typeof v === "string") setOwnerId(v);
               }}
+              items={memberOptions.map((m) => ({ value: m.id, label: m.name }))}
             >
               <SelectTrigger id="ownerId" className="w-full" disabled={pending}>
                 <SelectValue />
