@@ -14,6 +14,7 @@ import {
   index,
   primaryKey,
   uniqueIndex,
+  type AnyPgColumn,
 } from "drizzle-orm/pg-core";
 
 const authSchema = pgSchema("auth");
@@ -47,6 +48,46 @@ export const projectStatus = pgEnum("project_status", [
   "completed",
 ]);
 
+// Manual field, set by whoever owns the project. Advisory suggestions are
+// computed separately (src/lib/projects/health.ts) and surfaced as a chip
+// when they disagree with this value — the manual field stays authoritative.
+export const projectHealth = pgEnum("project_health", [
+  "on_track",
+  "at_risk",
+  "off_track",
+]);
+
+export const projectRiskKind = pgEnum("project_risk_kind", [
+  "risk",
+  "blocker",
+]);
+
+export const projectRiskSeverity = pgEnum("project_risk_severity", [
+  "low",
+  "medium",
+  "high",
+  "critical",
+]);
+
+// Blockers don't carry a likelihood (they're already happening) — nullable.
+export const projectRiskLikelihood = pgEnum("project_risk_likelihood", [
+  "low",
+  "medium",
+  "high",
+]);
+
+export const projectRiskStatus = pgEnum("project_risk_status", [
+  "open",
+  "monitoring",
+  "resolved",
+]);
+
+export const projectTemplateItemKind = pgEnum("project_template_item_kind", [
+  "phase",
+  "milestone",
+  "task",
+]);
+
 export const activityType = pgEnum("activity_type", [
   "email",
   "call",
@@ -57,6 +98,11 @@ export const activityType = pgEnum("activity_type", [
   "quote_sent",
   "quote_viewed",
   "quote_accepted",
+  // Project management additions. Phase changes reuse status_change with
+  // metadata: {kind:'phase', from, to} rather than a dedicated value.
+  "milestone_completed",
+  "risk_raised",
+  "risk_resolved",
 ]);
 
 export const activitySource = pgEnum("activity_source", [
@@ -74,10 +120,22 @@ export const subjectType = pgEnum("subject_type", [
   "project",
 ]);
 
+// blocked/cancelled added for project management — additive ALTER TYPE, not
+// used by anything in migration 0008 itself. Every switch/map over this enum
+// must handle all five values (see src/lib/projects/labels.ts).
 export const taskStatus = pgEnum("task_status", [
   "todo",
   "in_progress",
   "done",
+  "blocked",
+  "cancelled",
+]);
+
+export const taskPriority = pgEnum("task_priority", [
+  "low",
+  "normal",
+  "high",
+  "urgent",
 ]);
 
 export const quoteStatus = pgEnum("quote_status", [
@@ -336,7 +394,37 @@ export const projects = pgTable(
       .references(() => workspaces.id, { onDelete: "restrict" }),
     name: text("name").notNull(),
     dealId: uuid("deal_id").references(() => deals.id, { onDelete: "set null" }),
+    // Direct customer link — today an org is only reachable via the deal.
+    // Backfilled in migration 0008 from deals.organization_id where set.
+    organizationId: uuid("organization_id").references(() => organizations.id, {
+      onDelete: "set null",
+    }),
     status: projectStatus("status").notNull().default("not_started"),
+    // Manual; advisory suggestions computed in src/lib/projects/health.ts.
+    health: projectHealth("health").notNull().default("on_track"),
+    description: text("description"),
+    successCriteria: text("success_criteria"),
+    // Canonical list lives app-side (src/lib/projects/labels.ts), not a DB
+    // enum — keeps the list editable without a migration.
+    projectType: text("project_type"),
+    // Forward reference: project_phases is declared below. Nullable — the
+    // project's cursor through its own phases. The AnyPgColumn return-type
+    // annotation breaks the circular type inference between projects <->
+    // project_phases (project_phases.project_id references back to
+    // projects.id) — without it tsc can't resolve either table's type.
+    currentPhaseId: uuid("current_phase_id").references(
+      (): AnyPgColumn => projectPhases.id,
+      { onDelete: "set null" },
+    ),
+    // Overrides the tasks-derived progress (src/lib/projects/progress.ts)
+    // when set; null = computed.
+    progressManual: integer("progress_manual"),
+    completedAt: timestamp("completed_at", { withTimezone: true }),
+    // Provenance: which template (if any) generated this project's
+    // phases/milestones/tasks.
+    templateId: uuid("template_id").references(() => projectTemplates.id, {
+      onDelete: "set null",
+    }),
     startDate: date("start_date"),
     endDate: date("end_date"),
     notes: text("notes"),
@@ -347,8 +435,197 @@ export const projects = pgTable(
   (t) => [
     index("projects_workspace_idx").on(t.workspaceId),
     index("projects_deal_idx").on(t.dealId),
+    index("projects_org_idx").on(t.organizationId),
+    index("projects_phase_idx").on(t.currentPhaseId),
+    index("projects_health_idx").on(t.health),
   ],
 );
+
+// =============================================================================
+// Project management — phases, milestones, risks/blockers, links, templates
+// =============================================================================
+// Turns the thin `projects` row into a real implementation workspace. A
+// project's phases are an ordered, project-owned sequence (no shared "board
+// columns" table — the board view derives its columns from
+// project_settings.defaultPhases + whatever phases exist on projects, see
+// src/lib/projects/board.ts). Phases carry no status of their own; the
+// project's currentPhaseId is the cursor.
+
+export const projectPhases = pgTable(
+  "project_phases",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    workspaceId: uuid("workspace_id")
+      .notNull()
+      .references(() => workspaces.id, { onDelete: "restrict" }),
+    projectId: uuid("project_id")
+      .notNull()
+      .references(() => projects.id, { onDelete: "cascade" }),
+    name: text("name").notNull(),
+    sortOrder: integer("sort_order").notNull().default(0),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    index("project_phases_workspace_idx").on(t.workspaceId),
+    index("project_phases_project_idx").on(t.projectId),
+  ],
+);
+
+export const projectMilestones = pgTable(
+  "project_milestones",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    workspaceId: uuid("workspace_id")
+      .notNull()
+      .references(() => workspaces.id, { onDelete: "restrict" }),
+    projectId: uuid("project_id")
+      .notNull()
+      .references(() => projects.id, { onDelete: "cascade" }),
+    phaseId: uuid("phase_id").references(() => projectPhases.id, { onDelete: "set null" }),
+    name: text("name").notNull(),
+    description: text("description"),
+    dueDate: date("due_date"),
+    ownerId: uuid("owner_id").references(() => authUsers.id, { onDelete: "set null" }),
+    sortOrder: integer("sort_order").notNull().default(0),
+    // Overdue = dueDate < today && completedAt is null (see health.ts).
+    completedAt: timestamp("completed_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    index("project_milestones_workspace_idx").on(t.workspaceId),
+    index("project_milestones_project_idx").on(t.projectId),
+    index("project_milestones_phase_idx").on(t.phaseId),
+    index("project_milestones_due_idx").on(t.dueDate),
+  ],
+);
+
+export const projectRisks = pgTable(
+  "project_risks",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    workspaceId: uuid("workspace_id")
+      .notNull()
+      .references(() => workspaces.id, { onDelete: "restrict" }),
+    projectId: uuid("project_id")
+      .notNull()
+      .references(() => projects.id, { onDelete: "cascade" }),
+    kind: projectRiskKind("kind").notNull(),
+    title: text("title").notNull(),
+    description: text("description"),
+    severity: projectRiskSeverity("severity").notNull(),
+    // Blockers don't carry a likelihood — they're already happening.
+    likelihood: projectRiskLikelihood("likelihood"),
+    ownerId: uuid("owner_id").references(() => authUsers.id, { onDelete: "set null" }),
+    mitigation: text("mitigation"),
+    resolution: text("resolution"),
+    status: projectRiskStatus("status").notNull().default("open"),
+    resolvedAt: timestamp("resolved_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    index("project_risks_workspace_idx").on(t.workspaceId),
+    index("project_risks_project_idx").on(t.projectId),
+    index("project_risks_status_idx").on(t.status),
+  ],
+);
+
+export const projectLinks = pgTable(
+  "project_links",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    workspaceId: uuid("workspace_id")
+      .notNull()
+      .references(() => workspaces.id, { onDelete: "restrict" }),
+    projectId: uuid("project_id")
+      .notNull()
+      .references(() => projects.id, { onDelete: "cascade" }),
+    title: text("title").notNull(),
+    url: text("url").notNull(),
+    // doc/repo/deployment/drive/meeting/other — app-side list, not a DB enum.
+    kind: text("kind"),
+    createdBy: uuid("created_by").references(() => authUsers.id, { onDelete: "set null" }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    index("project_links_workspace_idx").on(t.workspaceId),
+    index("project_links_project_idx").on(t.projectId),
+  ],
+);
+
+// Templates are workspace-scoped (editable per workspace — org-specific ✓),
+// not global fixtures. The seed definitions in src/lib/projects/templates-seed.ts
+// are created lazily into a workspace's own rows, never a shared table.
+export const projectTemplates = pgTable(
+  "project_templates",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    workspaceId: uuid("workspace_id")
+      .notNull()
+      .references(() => workspaces.id, { onDelete: "restrict" }),
+    name: text("name").notNull(),
+    description: text("description"),
+    projectType: text("project_type"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index("project_templates_workspace_idx").on(t.workspaceId)],
+);
+
+export const projectTemplateItems = pgTable(
+  "project_template_items",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    workspaceId: uuid("workspace_id")
+      .notNull()
+      .references(() => workspaces.id, { onDelete: "restrict" }),
+    templateId: uuid("template_id")
+      .notNull()
+      .references(() => projectTemplates.id, { onDelete: "cascade" }),
+    kind: projectTemplateItemKind("kind").notNull(),
+    name: text("name").notNull(),
+    description: text("description"),
+    // Which phase a milestone/task belongs to, matched by name against the
+    // template's own phase items — not a FK (phases don't exist as rows
+    // until the template is expanded onto a real project).
+    phaseName: text("phase_name"),
+    // due = project start + offsetDays, resolved by expandTemplate().
+    offsetDays: integer("offset_days"),
+    sortOrder: integer("sort_order").notNull().default(0),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    index("project_template_items_workspace_idx").on(t.workspaceId),
+    index("project_template_items_template_idx").on(t.templateId),
+  ],
+);
+
+// One row per workspace (PK IS the workspace id — no separate id column).
+// Holds the default phase sequence the board view + create wizard fall
+// back to when a project has no phases of its own yet.
+export const projectSettings = pgTable("project_settings", {
+  workspaceId: uuid("workspace_id")
+    .primaryKey()
+    .references(() => workspaces.id, { onDelete: "restrict" }),
+  defaultPhases: jsonb("default_phases")
+    .$type<string[]>()
+    .notNull()
+    .default([
+      "Discovery",
+      "Solution Design",
+      "Build",
+      "Integration",
+      "Testing",
+      "Training",
+      "Go-Live",
+      "Hypercare",
+    ]),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+});
 
 export const activities = pgTable(
   "activities",
@@ -385,9 +662,20 @@ export const tasks = pgTable(
     title: text("title").notNull(),
     description: text("description"),
     status: taskStatus("status").notNull().default("todo"),
+    priority: taskPriority("priority").notNull().default("normal"),
     dueAt: timestamp("due_at", { withTimezone: true }),
     subjectType: subjectType("subject_type"),
     subjectId: uuid("subject_id"),
+    // Project-management grouping — set only when subjectType is 'project'.
+    // Nullable FKs, not enforced against subjectType, to keep tasks usable
+    // against every subject type without a check constraint.
+    projectPhaseId: uuid("project_phase_id").references(() => projectPhases.id, {
+      onDelete: "set null",
+    }),
+    milestoneId: uuid("milestone_id").references(() => projectMilestones.id, {
+      onDelete: "set null",
+    }),
+    sortOrder: integer("sort_order").notNull().default(0),
     assignedTo: uuid("assigned_to").references(() => authUsers.id, { onDelete: "set null" }),
     createdBy: uuid("created_by").references(() => authUsers.id, { onDelete: "set null" }),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
@@ -399,6 +687,8 @@ export const tasks = pgTable(
     index("tasks_subject_idx").on(t.subjectType, t.subjectId),
     index("tasks_assignee_idx").on(t.assignedTo),
     index("tasks_status_idx").on(t.status),
+    index("tasks_phase_idx").on(t.projectPhaseId),
+    index("tasks_milestone_idx").on(t.milestoneId),
   ],
 );
 

@@ -87,6 +87,15 @@ alter table public.email_campaigns  enable row level security;
 alter table public.email_sends      enable row level security;
 alter table public.inbox_items      enable row level security;
 
+-- Project management (migration 0008).
+alter table public.project_phases        enable row level security;
+alter table public.project_milestones    enable row level security;
+alter table public.project_risks         enable row level security;
+alter table public.project_links         enable row level security;
+alter table public.project_templates     enable row level security;
+alter table public.project_template_items enable row level security;
+alter table public.project_settings      enable row level security;
+
 -- Drop the previous phase-1-of-CRM "authenticated_all" policies so the new
 -- workspace-scoped ones can take over with the same name.
 drop policy if exists "authenticated_all" on public.organizations;
@@ -153,6 +162,56 @@ create policy "workspace_member_all" on public.email_sends
   with check (workspace_id in (select workspace_id from public.workspace_members where user_id = auth.uid()));
 
 create policy "workspace_member_all" on public.inbox_items
+  for all to authenticated
+  using (workspace_id in (select workspace_id from public.workspace_members where user_id = auth.uid()))
+  with check (workspace_id in (select workspace_id from public.workspace_members where user_id = auth.uid()));
+
+-- Project management (migration 0008) — same workspace-membership shape as
+-- every other CRM table above. Every row on these tables carries its own
+-- workspace_id (denormalized off the project, not joined through it), so
+-- the check is the same simple membership test, no join to `projects`
+-- required.
+drop policy if exists "workspace_member_all" on public.project_phases;
+create policy "workspace_member_all" on public.project_phases
+  for all to authenticated
+  using (workspace_id in (select workspace_id from public.workspace_members where user_id = auth.uid()))
+  with check (workspace_id in (select workspace_id from public.workspace_members where user_id = auth.uid()));
+
+drop policy if exists "workspace_member_all" on public.project_milestones;
+create policy "workspace_member_all" on public.project_milestones
+  for all to authenticated
+  using (workspace_id in (select workspace_id from public.workspace_members where user_id = auth.uid()))
+  with check (workspace_id in (select workspace_id from public.workspace_members where user_id = auth.uid()));
+
+drop policy if exists "workspace_member_all" on public.project_risks;
+create policy "workspace_member_all" on public.project_risks
+  for all to authenticated
+  using (workspace_id in (select workspace_id from public.workspace_members where user_id = auth.uid()))
+  with check (workspace_id in (select workspace_id from public.workspace_members where user_id = auth.uid()));
+
+drop policy if exists "workspace_member_all" on public.project_links;
+create policy "workspace_member_all" on public.project_links
+  for all to authenticated
+  using (workspace_id in (select workspace_id from public.workspace_members where user_id = auth.uid()))
+  with check (workspace_id in (select workspace_id from public.workspace_members where user_id = auth.uid()));
+
+drop policy if exists "workspace_member_all" on public.project_templates;
+create policy "workspace_member_all" on public.project_templates
+  for all to authenticated
+  using (workspace_id in (select workspace_id from public.workspace_members where user_id = auth.uid()))
+  with check (workspace_id in (select workspace_id from public.workspace_members where user_id = auth.uid()));
+
+drop policy if exists "workspace_member_all" on public.project_template_items;
+create policy "workspace_member_all" on public.project_template_items
+  for all to authenticated
+  using (workspace_id in (select workspace_id from public.workspace_members where user_id = auth.uid()))
+  with check (workspace_id in (select workspace_id from public.workspace_members where user_id = auth.uid()));
+
+-- project_settings' PK IS workspace_id (no separate id column) — the check
+-- uses the table's own primary key column directly instead of a workspace_id
+-- lookup on itself, same predicate either way.
+drop policy if exists "workspace_member_all" on public.project_settings;
+create policy "workspace_member_all" on public.project_settings
   for all to authenticated
   using (workspace_id in (select workspace_id from public.workspace_members where user_id = auth.uid()))
   with check (workspace_id in (select workspace_id from public.workspace_members where user_id = auth.uid()));

@@ -12,7 +12,10 @@ type ActivityType =
   | "task_completed"
   | "quote_sent"
   | "quote_viewed"
-  | "quote_accepted";
+  | "quote_accepted"
+  | "milestone_completed"
+  | "risk_raised"
+  | "risk_resolved";
 
 /**
  * Records an audit entry for an MCP-originated write.

@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { and, asc, desc, eq, gte, isNotNull, lt, ne } from "drizzle-orm";
+import { and, asc, desc, eq, gte, inArray, isNotNull, lt } from "drizzle-orm";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 
 import { db } from "@/lib/db";
@@ -7,6 +7,7 @@ import { tasks } from "@/lib/db/schema";
 import { auditMcpWrite } from "../audit";
 import { requireMcpWorkspace, textResult } from "../context";
 import { entityInWorkspace } from "../scope";
+import { OPEN_TASK_STATUSES, TASK_STATUSES } from "@/lib/projects/labels";
 
 const SUBJECT_TYPES = ["contact", "organization", "deal", "project"] as const;
 
@@ -127,9 +128,9 @@ export function registerTaskTools(server: McpServer) {
     "list_tasks",
     {
       description:
-        "List tasks with optional filters. Use this to answer 'what's on my plate?' style questions. Filters: status (default excludes 'done'), dueWithinDays (e.g. 7 = due in the next week), overdue (true = past due, not done), subjectType + subjectId (tasks linked to one entity). Default limit 50.",
+        "List tasks with optional filters. Use this to answer 'what's on my plate?' style questions. Filters: status (default excludes 'done' and 'cancelled' — i.e. open work), dueWithinDays (e.g. 7 = due in the next week), overdue (true = past due, not done), subjectType + subjectId (tasks linked to one entity). Default limit 50.",
       inputSchema: {
-        status: z.enum(["todo", "in_progress", "done"]).optional(),
+        status: z.enum(TASK_STATUSES).optional(),
         dueWithinDays: z.number().int().min(1).max(365).optional(),
         overdue: z.boolean().optional(),
         subjectType: z.enum(SUBJECT_TYPES).optional(),
@@ -147,8 +148,11 @@ export function registerTaskTools(server: McpServer) {
       const filters = [
         eq(tasks.workspaceId, workspaceId),
         // If a specific status is requested, honour it. Otherwise default to
-        // "not done" since open work is what callers usually want.
-        status ? eq(tasks.status, status) : ne(tasks.status, "done"),
+        // open work (excludes both 'done' and 'cancelled') since that's what
+        // callers usually want.
+        status
+          ? eq(tasks.status, status)
+          : inArray(tasks.status, OPEN_TASK_STATUSES),
         dueWithinDays
           ? and(
               isNotNull(tasks.dueAt),

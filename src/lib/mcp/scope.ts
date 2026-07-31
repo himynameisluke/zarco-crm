@@ -1,15 +1,36 @@
 import { and, eq } from "drizzle-orm";
 
 import { db } from "@/lib/db";
-import { contacts, deals, organizations, projects } from "@/lib/db/schema";
+import {
+  contacts,
+  deals,
+  organizations,
+  projectMilestones,
+  projectPhases,
+  projectRisks,
+  projectTemplates,
+  projects,
+} from "@/lib/db/schema";
 
-type EntityType = "contact" | "organization" | "deal" | "project";
+type EntityType =
+  | "contact"
+  | "organization"
+  | "deal"
+  | "project"
+  | "phase"
+  | "milestone"
+  | "template"
+  | "risk";
 
 const ENTITY_TABLES = {
   contact: contacts,
   organization: organizations,
   deal: deals,
   project: projects,
+  phase: projectPhases,
+  milestone: projectMilestones,
+  template: projectTemplates,
+  risk: projectRisks,
 } as const;
 
 const UUID_RE =

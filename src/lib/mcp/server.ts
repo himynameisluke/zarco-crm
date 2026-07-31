@@ -8,10 +8,11 @@ import { registerTaskTools } from "./tools/tasks";
 import { registerQuoteTools } from "./tools/quotes";
 import { registerContractTools } from "./tools/contracts";
 import { registerHighStakesTools } from "./tools/high-stakes";
+import { registerProjectTools } from "./tools/projects";
 
 export const MCP_SERVER_INFO = {
   name: "zarco-crm",
-  version: "0.6.0",
+  version: "0.7.0",
 } as const;
 
 /**
@@ -25,8 +26,10 @@ export const MCP_SERVER_INFO = {
  *   - Tasks:          list_tasks
  *   - Quotes:         list_quotes, get_quote
  *   - Contracts:      list_contracts (renewals book — dueWithinDays filter)
+ *   - Projects:       list_projects, get_project, list_overdue_project_work
  *
- * Write tools (all audit via auditMcpWrite, tagged source='mcp'):
+ * Write tools (all audit via auditMcpWrite, or lib/projects/writes.ts's
+ * source:'mcp' for projects — same doctrine, tagged source='mcp'):
  *   - Contacts:       create_contact, update_contact
  *   - Organizations:  create_organization, update_organization
  *   - Deals:          create_deal, update_deal, update_deal_stage
@@ -34,6 +37,10 @@ export const MCP_SERVER_INFO = {
  *   - Tasks:          create_task, complete_task
  *   - Quotes:         create_quote, update_quote
  *   - Contracts:      create_contract, update_contract
+ *   - Projects:       create_project, update_project, add_project_task,
+ *                     complete_milestone, raise_project_risk,
+ *                     resolve_project_risk (shares lib/projects/writes.ts
+ *                     with the web server actions — no forked logic)
  *
  * High-stakes tools (require confirm=true, marked destructiveHint):
  *   - Deletes:        delete_contact, delete_organization, delete_deal
@@ -50,4 +57,5 @@ export function registerTools(server: McpServer) {
   registerQuoteTools(server);
   registerContractTools(server);
   registerHighStakesTools(server);
+  registerProjectTools(server);
 }
