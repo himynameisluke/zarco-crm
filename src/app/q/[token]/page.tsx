@@ -1,6 +1,6 @@
 import { notFound } from "next/navigation";
 import { asc, eq } from "drizzle-orm";
-import { Check, X } from "lucide-react";
+import { Check, Clock, X } from "lucide-react";
 
 import { db } from "@/lib/db";
 import {
@@ -12,6 +12,7 @@ import {
 import { ZarcoMark } from "@/components/nav/zarco-mark";
 import { PublicDecisionButtons } from "@/components/quotes/public-decision";
 import { formatDateShort, formatMoney } from "@/lib/format";
+import { isExpired } from "@/lib/quotes/expiry";
 import { recordQuoteView } from "./actions";
 
 export const dynamic = "force-dynamic";
@@ -72,6 +73,11 @@ export default async function PublicQuotePage({
     null;
 
   const decided = quote.status === "accepted" || quote.status === "declined";
+  // Mirror the accept/decline actions' boundary: a quote past validUntil (or
+  // already marked expired) must not present live decision buttons — the
+  // recipient would only discover the expiry after clicking Accept.
+  const expired =
+    !decided && (quote.status === "expired" || isExpired(quote.validUntil));
 
   return (
     <div
@@ -299,6 +305,26 @@ export default async function PublicQuotePage({
                 {quote.status === "accepted"
                   ? `Accepted${quote.acceptedAt ? ` on ${formatDateShort(quote.acceptedAt)}` : ""}. We'll be in touch.`
                   : "This quote was declined."}
+              </span>
+            </div>
+          ) : expired ? (
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: 10,
+                padding: "14px 16px",
+                borderRadius: 8,
+                background: "var(--surface-2)",
+                border: "1px solid var(--hairline)",
+                color: "var(--ink-2)",
+              }}
+            >
+              <Clock size={16} />
+              <span style={{ fontSize: 13 }}>
+                {quote.validUntil
+                  ? `This quote expired on ${formatDateShort(quote.validUntil)} — get in touch for an updated one.`
+                  : "This quote has expired — get in touch for an updated one."}
               </span>
             </div>
           ) : (

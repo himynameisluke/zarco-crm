@@ -5,18 +5,12 @@ import { eq } from "drizzle-orm";
 
 import { db } from "@/lib/db";
 import { activities, quotes } from "@/lib/db/schema";
+import { isExpired } from "@/lib/quotes/expiry";
 
 // All public-token actions share the same access rules as the /q/[token]
 // viewer: drafts are invisible (treated as not-found), and a quote past its
 // validUntil date can no longer be accepted or declined. These run
 // unauthenticated, so the checks here are the entire boundary.
-
-/** True when the quote's validUntil date (a DATE column, YYYY-MM-DD) has passed. */
-function isExpired(validUntil: string | null): boolean {
-  if (!validUntil) return false;
-  const today = new Date().toISOString().slice(0, 10);
-  return validUntil < today;
-}
 
 /**
  * Timeline events for the deal when the recipient views/accepts/declines.
