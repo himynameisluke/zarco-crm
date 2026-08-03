@@ -4,13 +4,19 @@ import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { entityInWorkspace } from "../scope";
 import { requireMcpWorkspace, textResult } from "../context";
 import { isWorkspaceMember } from "@/lib/workspace/members";
-import { getProjectDetail, listOverdueProjectWork, listProjects } from "@/lib/projects/queries";
+import {
+  getProjectDetail,
+  listOverdueProjectWork,
+  listProjects,
+  listProjectTemplatesForWorkspace,
+} from "@/lib/projects/queries";
 import {
   createProjectCore,
   createProjectTaskCore,
   completeMilestoneCore,
   raiseRiskCore,
   resolveRiskCore,
+  seedDefaultTemplatesCore,
   updateProjectCore,
 } from "@/lib/projects/writes";
 import {
@@ -42,6 +48,23 @@ async function memberReferenceError(
 }
 
 export function registerProjectTools(server: McpServer) {
+  server.registerTool(
+    "list_project_templates",
+    {
+      description:
+        "List this workspace's project templates for use with create_project's templateId. Returns id, name, description, projectType, and per-kind item counts (phases/milestones/tasks). An empty workspace is lazily seeded with the built-in templates on first call — same behavior as /settings/projects.",
+      inputSchema: {},
+      annotations: { destructiveHint: false, idempotentHint: true },
+    },
+    async (_input, { authInfo }) => {
+      const { workspaceId } = await requireMcpWorkspace(authInfo);
+      // Idempotent: no-ops unless the workspace has zero templates.
+      await seedDefaultTemplatesCore(workspaceId);
+      const templates = await listProjectTemplatesForWorkspace(workspaceId);
+      return textResult({ count: templates.length, templates });
+    },
+  );
+
   server.registerTool(
     "list_projects",
     {

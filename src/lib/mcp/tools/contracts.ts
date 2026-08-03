@@ -181,13 +181,32 @@ export function registerContractTools(server: McpServer) {
           .optional(),
         autoRenew: z.boolean().optional(),
         notes: z.string().trim().max(5000).nullable().optional(),
+        organizationId: z
+          .string()
+          .uuid()
+          .optional()
+          .describe(
+            "Re-assign the contract to a different organization (transfer only — cannot be unset, so the renewals book never orphans)",
+          ),
       },
       annotations: { destructiveHint: false, idempotentHint: true },
     },
     async ({ id, ...patch }, { authInfo }) => {
       const { userId, workspaceId } = await requireMcpWorkspace(authInfo);
 
+      if (
+        patch.organizationId &&
+        !(await entityInWorkspace("organization", patch.organizationId, workspaceId))
+      ) {
+        return textResult({
+          error: "invalid_reference",
+          message: "organizationId does not exist in this workspace",
+        });
+      }
+
       const updateValues: Record<string, unknown> = { updatedAt: new Date() };
+      if (patch.organizationId !== undefined)
+        updateValues.organizationId = patch.organizationId;
       if (patch.name !== undefined) updateValues.name = patch.name;
       if (patch.status !== undefined) updateValues.status = patch.status;
       if (patch.valuePence !== undefined) updateValues.valuePence = patch.valuePence;
