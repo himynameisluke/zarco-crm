@@ -9,6 +9,7 @@ import {
   contracts,
   deals,
   organizations,
+  quoteLineItems,
   quotes,
   tasks,
 } from "@/lib/db/schema";
@@ -249,6 +250,123 @@ export function registerHighStakesTools(server: McpServer) {
           .where(and(eq(deals.id, id), eq(deals.workspaceId, workspaceId)));
       });
       return textResult({ deleted: { id, name: target.name }, by: userId });
+    },
+  );
+
+  server.registerTool(
+    "delete_quote",
+    {
+      description: `Permanently delete a quote and its line items. ${CONFIRM_REQUIRED_NOTE} Deleting a sent/accepted quote also kills its public /q/[token] page and PDF. The deal keeps its timeline history. Unblocks delete_deal / delete_organization when they refuse with has_quotes.`,
+      inputSchema: {
+        id: z.string().uuid(),
+        confirm: z.boolean(),
+      },
+      annotations: { destructiveHint: true, idempotentHint: true },
+    },
+    async ({ id, confirm }, { authInfo }) => {
+      const { userId, workspaceId } = await requireMcpWorkspace(authInfo);
+      if (!confirm) {
+        return textResult({
+          error: "confirm_required",
+          message: "Refusing destructive delete without explicit confirm=true",
+        });
+      }
+      const [target] = await db
+        .select({
+          quoteNumber: quotes.quoteNumber,
+          status: quotes.status,
+          dealId: quotes.dealId,
+          totalPence: quotes.totalPence,
+          currency: quotes.currency,
+        })
+        .from(quotes)
+        .where(and(eq(quotes.id, id), eq(quotes.workspaceId, workspaceId)))
+        .limit(1);
+      if (!target) {
+        return textResult({ error: "not_found", id });
+      }
+      // Line items cascade via FK, but delete explicitly so the pair commits
+      // or rolls back together regardless of FK config drift.
+      await db.transaction(async (tx) => {
+        await tx
+          .delete(quoteLineItems)
+          .where(
+            and(
+              eq(quoteLineItems.quoteId, id),
+              eq(quoteLineItems.workspaceId, workspaceId),
+            ),
+          );
+        await tx
+          .delete(quotes)
+          .where(and(eq(quotes.id, id), eq(quotes.workspaceId, workspaceId)));
+      });
+      // The deal outlives its quote — record the deletion on its timeline.
+      await auditMcpWrite({
+        workspaceId,
+        type: "note",
+        subjectType: "deal",
+        subjectId: target.dealId,
+        subject: `Deleted quote ${target.quoteNumber}`,
+        body: `Was ${target.status} · total ${(target.totalPence / 100).toFixed(2)} ${target.currency}`,
+        userId,
+        metadata: { quoteId: id, quoteNumber: target.quoteNumber },
+      });
+      return textResult({
+        deleted: { id, quoteNumber: target.quoteNumber, status: target.status },
+        by: userId,
+      });
+    },
+  );
+
+  server.registerTool(
+    "delete_contract",
+    {
+      description: `Permanently delete a contract from the renewals book. ${CONFIRM_REQUIRED_NOTE} Prefer status='cancelled'/'lapsed' via update_contract to keep renewal history — delete only for mistakes/test data. Unblocks delete_organization when it refuses with has_contracts.`,
+      inputSchema: {
+        id: z.string().uuid(),
+        confirm: z.boolean(),
+      },
+      annotations: { destructiveHint: true, idempotentHint: true },
+    },
+    async ({ id, confirm }, { authInfo }) => {
+      const { userId, workspaceId } = await requireMcpWorkspace(authInfo);
+      if (!confirm) {
+        return textResult({
+          error: "confirm_required",
+          message: "Refusing destructive delete without explicit confirm=true",
+        });
+      }
+      const [target] = await db
+        .select({
+          name: contracts.name,
+          status: contracts.status,
+          organizationId: contracts.organizationId,
+        })
+        .from(contracts)
+        .where(and(eq(contracts.id, id), eq(contracts.workspaceId, workspaceId)))
+        .limit(1);
+      if (!target) {
+        return textResult({ error: "not_found", id });
+      }
+      await db
+        .delete(contracts)
+        .where(and(eq(contracts.id, id), eq(contracts.workspaceId, workspaceId)));
+      if (target.organizationId) {
+        await auditMcpWrite({
+          workspaceId,
+          type: "note",
+          subjectType: "organization",
+          subjectId: target.organizationId,
+          subject: `Deleted contract ${target.name}`,
+          body: `Was ${target.status}`,
+          userId,
+          metadata: { contractId: id },
+        });
+      }
+      return textResult({
+        deleted: { id, name: target.name, status: target.status },
+        by: userId,
+      });
     },
   );
 
