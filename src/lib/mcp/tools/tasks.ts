@@ -7,7 +7,7 @@ import { tasks } from "@/lib/db/schema";
 import { auditMcpWrite } from "../audit";
 import { requireMcpWorkspace, textResult } from "../context";
 import { entityInWorkspace } from "../scope";
-import { OPEN_TASK_STATUSES, TASK_STATUSES } from "@/lib/projects/labels";
+import { OPEN_TASK_STATUSES, TASK_PRIORITIES, TASK_STATUSES } from "@/lib/projects/labels";
 
 const SUBJECT_TYPES = ["contact", "organization", "deal", "project"] as const;
 
@@ -25,6 +25,7 @@ export function registerTaskTools(server: McpServer) {
           .datetime({ offset: true })
           .optional()
           .describe("ISO 8601 timestamp"),
+        priority: z.enum(TASK_PRIORITIES).default("normal"),
         subjectType: z.enum(SUBJECT_TYPES).optional(),
         subjectId: z.string().uuid().optional(),
       },
@@ -58,6 +59,7 @@ export function registerTaskTools(server: McpServer) {
           title: input.title,
           description: input.description ?? null,
           dueAt: input.dueAt ? new Date(input.dueAt) : null,
+          priority: input.priority,
           status: "todo",
           subjectType: input.subjectType ?? null,
           subjectId: input.subjectId ?? null,

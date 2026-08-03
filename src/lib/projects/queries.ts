@@ -677,3 +677,31 @@ export async function listOverdueProjectWork(
     overdueMilestones,
   };
 }
+
+/**
+ * Templates available for create_project's templateId, with per-kind item
+ * counts so a caller can tell what expanding each one will produce.
+ */
+export async function listProjectTemplatesForWorkspace(workspaceId: string) {
+  return db
+    .select({
+      id: projectTemplates.id,
+      name: projectTemplates.name,
+      description: projectTemplates.description,
+      projectType: projectTemplates.projectType,
+      phaseCount: sql<number>`count(*) filter (where ${projectTemplateItems.kind} = 'phase')::int`,
+      milestoneCount: sql<number>`count(*) filter (where ${projectTemplateItems.kind} = 'milestone')::int`,
+      taskCount: sql<number>`count(*) filter (where ${projectTemplateItems.kind} = 'task')::int`,
+    })
+    .from(projectTemplates)
+    .leftJoin(
+      projectTemplateItems,
+      and(
+        eq(projectTemplateItems.templateId, projectTemplates.id),
+        eq(projectTemplateItems.workspaceId, workspaceId),
+      ),
+    )
+    .where(eq(projectTemplates.workspaceId, workspaceId))
+    .groupBy(projectTemplates.id)
+    .orderBy(asc(projectTemplates.name));
+}
