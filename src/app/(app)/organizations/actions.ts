@@ -5,7 +5,13 @@ import { revalidatePath } from "next/cache";
 import { and, eq, sql } from "drizzle-orm";
 
 import { db } from "@/lib/db";
-import { activities, organizations, quotes, tasks } from "@/lib/db/schema";
+import {
+  activities,
+  contracts,
+  organizations,
+  quotes,
+  tasks,
+} from "@/lib/db/schema";
 import { requireUser } from "@/lib/auth";
 import { requireCurrentWorkspace } from "@/lib/workspace/current";
 import { organizationFormSchema } from "./schema";
@@ -118,6 +124,23 @@ export async function deleteOrganization(id: string) {
   if (quoteCount > 0) {
     return {
       error: `This organization has ${quoteCount} quote${quoteCount === 1 ? "" : "s"} — delete or re-assign them first`,
+    };
+  }
+
+  // Contracts are the renewals book — deleting the org would strand them
+  // with no owner (organizationId is nulled, not cascaded). Refuse instead.
+  const [{ n: contractCount }] = await db
+    .select({ n: sql<number>`count(*)::int` })
+    .from(contracts)
+    .where(
+      and(
+        eq(contracts.organizationId, id),
+        eq(contracts.workspaceId, workspace.id),
+      ),
+    );
+  if (contractCount > 0) {
+    return {
+      error: `This organization has ${contractCount} contract${contractCount === 1 ? "" : "s"} — delete them from Renewals first`,
     };
   }
 

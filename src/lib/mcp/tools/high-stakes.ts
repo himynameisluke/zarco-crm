@@ -3,7 +3,15 @@ import { and, eq, sql } from "drizzle-orm";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 
 import { db } from "@/lib/db";
-import { activities, contacts, deals, organizations, quotes, tasks } from "@/lib/db/schema";
+import {
+  activities,
+  contacts,
+  contracts,
+  deals,
+  organizations,
+  quotes,
+  tasks,
+} from "@/lib/db/schema";
 import { auditMcpWrite } from "../audit";
 import { requireMcpWorkspace, textResult } from "../context";
 import { entityInWorkspace } from "../scope";
@@ -96,7 +104,7 @@ export function registerHighStakesTools(server: McpServer) {
   server.registerTool(
     "delete_organization",
     {
-      description: `Permanently delete an organization. ${CONFIRM_REQUIRED_NOTE} Linked contacts and deals stay (their organizationId is nulled); the org's own activities/tasks are deleted with it. Refuses if the org still has quotes.`,
+      description: `Permanently delete an organization. ${CONFIRM_REQUIRED_NOTE} Linked contacts, deals and projects stay (their organizationId is nulled); the org's own activities/tasks are deleted with it. Refuses if the org still has quotes or contracts (delete those from /quotes and /renewals first).`,
       inputSchema: {
         id: z.string().uuid(),
         confirm: z.boolean(),
@@ -133,6 +141,23 @@ export function registerHighStakesTools(server: McpServer) {
         return textResult({
           error: "has_quotes",
           message: `Organization has ${orgQuoteCount} quote(s) — delete or re-assign them first`,
+        });
+      }
+      // Contracts are the renewals book — silently nulling their org would
+      // strand an active retainer with no owner. Refuse, like quotes.
+      const [{ n: orgContractCount }] = await db
+        .select({ n: sql<number>`count(*)::int` })
+        .from(contracts)
+        .where(
+          and(
+            eq(contracts.organizationId, id),
+            eq(contracts.workspaceId, workspaceId),
+          ),
+        );
+      if (orgContractCount > 0) {
+        return textResult({
+          error: "has_contracts",
+          message: `Organization has ${orgContractCount} contract(s) — delete them from /renewals first`,
         });
       }
       await db.transaction(async (tx) => {

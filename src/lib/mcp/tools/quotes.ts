@@ -14,6 +14,11 @@ import { auditMcpWrite } from "../audit";
 import { requireMcpWorkspace, textResult } from "../context";
 import { entityInWorkspace } from "../scope";
 import { nextQuoteNumber } from "@/lib/quotes/number";
+import {
+  computeTotalsPence,
+  lineTotalPence,
+  totalWithTaxPence,
+} from "@/lib/quotes/totals";
 
 const STATUS_VALUES = [
   "draft",
@@ -29,18 +34,6 @@ const lineItemSchema = z.object({
   quantity: z.number().min(0).default(1),
   unitPricePence: z.number().int().min(0).max(1_000_000_000_00),
 });
-
-function computeTotals(
-  items: z.infer<typeof lineItemSchema>[],
-  taxRate: number,
-) {
-  const subtotalPence = items.reduce(
-    (sum, li) => sum + Math.round(li.quantity * li.unitPricePence),
-    0,
-  );
-  const totalPence = Math.round(subtotalPence * (1 + taxRate));
-  return { subtotalPence, totalPence };
-}
 
 export function registerQuoteTools(server: McpServer) {
   server.registerTool(
@@ -90,7 +83,7 @@ export function registerQuoteTools(server: McpServer) {
         });
       }
 
-      const { subtotalPence, totalPence } = computeTotals(
+      const { subtotalPence, totalPence } = computeTotalsPence(
         input.lineItems,
         input.taxRate,
       );
@@ -128,7 +121,7 @@ export function registerQuoteTools(server: McpServer) {
               description: li.description,
               quantity: String(li.quantity),
               unitPricePence: li.unitPricePence,
-              totalPence: Math.round(li.quantity * li.unitPricePence),
+              totalPence: lineTotalPence(li),
               sortOrder: i,
             })),
           )
@@ -290,7 +283,7 @@ export function registerQuoteTools(server: McpServer) {
     "update_quote",
     {
       description:
-        "Update an existing draft/sent quote. Pass only the fields you want to change. If you include `lineItems`, ALL existing line items are replaced (and subtotal/total recomputed). Don't include lineItems if you only want to tweak metadata like notes or validUntil.",
+        "Update an existing DRAFT quote. Pass only the fields you want to change. If you include `lineItems`, ALL existing line items are replaced. Subtotal/total are recomputed whenever lineItems or taxRate change. Sent/accepted quotes can't be edited (their public page is live) — create a new quote instead.",
       inputSchema: {
         id: z.string().uuid(),
         currency: z.string().trim().length(3).optional(),
@@ -301,8 +294,9 @@ export function registerQuoteTools(server: McpServer) {
           .nullable()
           .optional(),
         notes: z.string().trim().max(5000).nullable().optional(),
-        dealId: z.string().uuid().nullable().optional(),
-        organizationId: z.string().uuid().nullable().optional(),
+        // dealId + organizationId are NOT NULL in the DB — re-assign only.
+        dealId: z.string().uuid().optional(),
+        organizationId: z.string().uuid().optional(),
         contactId: z.string().uuid().nullable().optional(),
         lineItems: z.array(lineItemSchema).min(1).max(100).optional(),
       },
@@ -317,6 +311,16 @@ export function registerQuoteTools(server: McpServer) {
         .where(and(eq(quotes.id, id), eq(quotes.workspaceId, workspaceId)))
         .limit(1);
       if (!existing) return textResult({ error: "not_found", id });
+
+      // Draft-only, matching the web updateQuote action: once sent, the
+      // recipient may have seen (or accepted!) the numbers on the public
+      // page, so silently re-pricing would make that page lie.
+      if (existing.status !== "draft") {
+        return textResult({
+          error: "invalid_state",
+          message: `Quote is ${existing.status} — only drafts can be edited. Create a new quote instead.`,
+        });
+      }
 
       if (patch.dealId && !(await entityInWorkspace("deal", patch.dealId, workspaceId))) {
         return textResult({
@@ -353,44 +357,57 @@ export function registerQuoteTools(server: McpServer) {
         updateValues.organizationId = patch.organizationId;
       if (patch.contactId !== undefined) updateValues.contactId = patch.contactId;
 
-      // If line items provided, replace + recompute totals.
+      // Totals must track their inputs: a full recompute when line items are
+      // replaced, and a tax-only recompute from the stored subtotal when just
+      // the rate moves (this used to leave totalPence stale).
       if (lineItems) {
         const effectiveTaxRate =
           patch.taxRate !== undefined
             ? patch.taxRate
             : Number(existing.taxRate);
-        const totals = computeTotals(lineItems, effectiveTaxRate);
+        const totals = computeTotalsPence(lineItems, effectiveTaxRate);
         updateValues.subtotalPence = totals.subtotalPence;
         updateValues.totalPence = totals.totalPence;
-
-        await db
-          .delete(quoteLineItems)
-          .where(
-            and(
-              eq(quoteLineItems.quoteId, id),
-              eq(quoteLineItems.workspaceId, workspaceId),
-            ),
-          );
-        await db.insert(quoteLineItems).values(
-          lineItems.map((li, i) => ({
-            quoteId: id,
-            // Line items inherit the parent quote's workspace (defense in
-            // depth — every workspace-scoped table carries its own FK).
-            workspaceId: existing.workspaceId,
-            description: li.description,
-            quantity: String(li.quantity),
-            unitPricePence: li.unitPricePence,
-            totalPence: Math.round(li.quantity * li.unitPricePence),
-            sortOrder: i,
-          })),
+      } else if (patch.taxRate !== undefined) {
+        updateValues.totalPence = totalWithTaxPence(
+          existing.subtotalPence,
+          patch.taxRate,
         );
       }
 
-      const [updated] = await db
-        .update(quotes)
-        .set(updateValues)
-        .where(and(eq(quotes.id, id), eq(quotes.workspaceId, workspaceId)))
-        .returning();
+      // One transaction — a failure between "delete items" and "insert items"
+      // must not leave a quote with new totals and zero line items.
+      const [updated] = await db.transaction(async (tx) => {
+        if (lineItems) {
+          await tx
+            .delete(quoteLineItems)
+            .where(
+              and(
+                eq(quoteLineItems.quoteId, id),
+                eq(quoteLineItems.workspaceId, workspaceId),
+              ),
+            );
+          await tx.insert(quoteLineItems).values(
+            lineItems.map((li, i) => ({
+              quoteId: id,
+              // Line items inherit the parent quote's workspace (defense in
+              // depth — every workspace-scoped table carries its own FK).
+              workspaceId: existing.workspaceId,
+              description: li.description,
+              quantity: String(li.quantity),
+              unitPricePence: li.unitPricePence,
+              totalPence: lineTotalPence(li),
+              sortOrder: i,
+            })),
+          );
+        }
+
+        return tx
+          .update(quotes)
+          .set(updateValues)
+          .where(and(eq(quotes.id, id), eq(quotes.workspaceId, workspaceId)))
+          .returning();
+      });
 
       const changedFields = Object.keys(updateValues).filter(
         (k) => k !== "updatedAt",
@@ -401,9 +418,8 @@ export function registerQuoteTools(server: McpServer) {
         workspaceId,
         type: "note",
         subjectType: "deal",
-        // If the quote isn't linked to a deal, log against the org / contact
-        // fallbacks aren't great here; for now we only audit if there's a deal.
-        subjectId: updated.dealId ?? updated.organizationId ?? updated.contactId ?? id,
+        // dealId is NOT NULL in the DB, so the deal timeline always exists.
+        subjectId: updated.dealId,
         subject: `Updated quote ${updated.quoteNumber}`,
         body:
           changedFields.length > 0
