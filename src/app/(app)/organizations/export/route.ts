@@ -5,6 +5,7 @@ import { db } from "@/lib/db";
 import { organizations } from "@/lib/db/schema";
 import { getCurrentWorkspace } from "@/lib/workspace/current";
 import { toCsv } from "@/lib/csv";
+import { businessDateString } from "@/lib/dates/business";
 
 export const dynamic = "force-dynamic";
 
@@ -41,7 +42,7 @@ export async function GET() {
       o.industry,
       o.employeeCount,
       o.notes,
-      o.createdAt.toISOString().slice(0, 10),
+      businessDateString(o.createdAt),
     ]),
   );
 
@@ -49,7 +50,7 @@ export async function GET() {
     status: 200,
     headers: {
       "Content-Type": "text/csv; charset=utf-8",
-      "Content-Disposition": `attachment; filename="organizations-${new Date().toISOString().slice(0, 10)}.csv"`,
+      "Content-Disposition": `attachment; filename="organizations-${businessDateString()}.csv"`,
       "Cache-Control": "no-store",
     },
   });
