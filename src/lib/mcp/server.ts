@@ -12,7 +12,7 @@ import { registerProjectTools } from "./tools/projects";
 
 export const MCP_SERVER_INFO = {
   name: "zarco-crm",
-  version: "0.7.0",
+  version: "0.8.0",
 } as const;
 
 /**
@@ -43,7 +43,8 @@ export const MCP_SERVER_INFO = {
  *                     with the web server actions — no forked logic)
  *
  * High-stakes tools (require confirm=true, marked destructiveHint):
- *   - Deletes:        delete_contact, delete_organization, delete_deal
+ *   - Deletes:        delete_contact, delete_organization, delete_deal,
+ *                     delete_quote, delete_contract
  *   - Sends (stub):   send_email, send_quote — real delivery ships with
  *                     the Resend integration; for now they record intent
  *                     and transition state.
