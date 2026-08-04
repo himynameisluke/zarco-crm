@@ -12,7 +12,7 @@ import { registerProjectTools } from "./tools/projects";
 
 export const MCP_SERVER_INFO = {
   name: "zarco-crm",
-  version: "0.8.0",
+  version: "0.9.0",
 } as const;
 
 /**

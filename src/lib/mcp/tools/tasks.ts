@@ -8,6 +8,7 @@ import { auditMcpWrite } from "../audit";
 import { requireMcpWorkspace, textResult } from "../context";
 import { entityInWorkspace } from "../scope";
 import { OPEN_TASK_STATUSES, TASK_PRIORITIES, TASK_STATUSES } from "@/lib/projects/labels";
+import { UPDATE_TASK_INPUT, planTaskUpdate } from "./task-update";
 
 const SUBJECT_TYPES = ["contact", "organization", "deal", "project"] as const;
 
@@ -118,6 +119,69 @@ export function registerTaskTools(server: McpServer) {
           subjectType: updated.subjectType,
           subjectId: updated.subjectId,
           subject: `Completed: ${updated.title}`,
+          userId,
+        });
+      }
+
+      return textResult({ updated });
+    },
+  );
+
+  server.registerTool(
+    "update_task",
+    {
+      description:
+        "Update an existing task: status (todo / in_progress / done / blocked / cancelled), title, description, due date or priority. Pass only what you want to change — anything omitted is left alone. Providing no editable fields is an error. Set dueAt to null to clear a due date. Moving a task to 'done' stamps completedAt and logs to the linked entity's timeline; moving it back OUT of done clears completedAt and reopens it. To simply close a task, complete_task is the shorter path.",
+      inputSchema: UPDATE_TASK_INPUT,
+      annotations: { destructiveHint: false, idempotentHint: true },
+    },
+    async ({ id, ...patch }, { authInfo }) => {
+      const { userId, workspaceId } = await requireMcpWorkspace(authInfo);
+
+      const [before] = await db
+        .select({
+          title: tasks.title,
+          status: tasks.status,
+          subjectType: tasks.subjectType,
+          subjectId: tasks.subjectId,
+        })
+        .from(tasks)
+        .where(and(eq(tasks.id, id), eq(tasks.workspaceId, workspaceId)))
+        .limit(1);
+      if (!before) return textResult({ error: "not_found", id });
+
+      const plan = planTaskUpdate(patch, { status: before.status }, new Date());
+      if ("error" in plan) return textResult(plan);
+
+      // A status "change" to the status it already has, with nothing else in the
+      // patch, would touch the row for no reason — the same phantom update
+      // update_deal guards against.
+      if (plan.changedFields.length === 1 && plan.changedFields[0] === "status" && patch.status === before.status) {
+        return textResult({ unchanged: { id, status: before.status } });
+      }
+
+      const [updated] = await db
+        .update(tasks)
+        .set(plan.values)
+        .where(and(eq(tasks.id, id), eq(tasks.workspaceId, workspaceId)))
+        .returning();
+      if (!updated) return textResult({ error: "not_found", id });
+
+      if (before.subjectType && before.subjectId) {
+        // A close reuses complete_task's activity type so the two paths read
+        // identically on the timeline; everything else is a plain note.
+        await auditMcpWrite({
+          workspaceId,
+          type: plan.transition === "completed" ? "task_completed" : "note",
+          subjectType: before.subjectType,
+          subjectId: before.subjectId,
+          subject:
+            plan.transition === "completed"
+              ? `Completed: ${updated.title}`
+              : plan.transition === "reopened"
+                ? `Reopened: ${updated.title}`
+                : `Updated task: ${updated.title}`,
+          body: `Changed: ${plan.changedFields.join(", ")}`,
           userId,
         });
       }
