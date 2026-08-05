@@ -2,6 +2,7 @@ import "server-only";
 
 import { db } from "@/lib/db";
 import { activities, deals } from "@/lib/db/schema";
+import { businessDateString } from "@/lib/dates/business";
 import type { DealStage } from "@/app/(app)/deals/schema";
 
 /**
@@ -25,7 +26,9 @@ export function stageTransitionValues(
     updatedAt: new Date(),
   };
   if (to === "won" || to === "lost") {
-    values.closeDate = new Date().toISOString().slice(0, 10);
+    // UK-local date, not UTC — a deal won at 00:30 BST closes "today",
+    // not yesterday.
+    values.closeDate = businessDateString();
   }
   values.lostReason = to === "lost" ? (reason?.trim() || null) : null;
   return values;

@@ -5,6 +5,7 @@ import { db } from "@/lib/db";
 import { contacts, organizations } from "@/lib/db/schema";
 import { getCurrentWorkspace } from "@/lib/workspace/current";
 import { toCsv } from "@/lib/csv";
+import { businessDateString } from "@/lib/dates/business";
 
 export const dynamic = "force-dynamic";
 
@@ -56,7 +57,7 @@ export async function GET() {
       c.organizationName,
       c.linkedinUrl,
       c.notes,
-      c.createdAt.toISOString().slice(0, 10),
+      businessDateString(c.createdAt),
     ]),
   );
 
@@ -64,7 +65,7 @@ export async function GET() {
     status: 200,
     headers: {
       "Content-Type": "text/csv; charset=utf-8",
-      "Content-Disposition": `attachment; filename="contacts-${new Date().toISOString().slice(0, 10)}.csv"`,
+      "Content-Disposition": `attachment; filename="contacts-${businessDateString()}.csv"`,
       "Cache-Control": "no-store",
     },
   });

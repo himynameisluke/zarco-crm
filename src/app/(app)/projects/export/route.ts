@@ -4,6 +4,7 @@ import { getCurrentWorkspace } from "@/lib/workspace/current";
 import { listProjects } from "@/lib/projects/queries";
 import { toCsv } from "@/lib/csv";
 import { formatDateShort } from "@/lib/format";
+import { businessDateString } from "@/lib/dates/business";
 
 export const dynamic = "force-dynamic";
 
@@ -67,7 +68,7 @@ export async function GET(request: Request) {
     status: 200,
     headers: {
       "Content-Type": "text/csv; charset=utf-8",
-      "Content-Disposition": `attachment; filename="projects-${new Date().toISOString().slice(0, 10)}.csv"`,
+      "Content-Disposition": `attachment; filename="projects-${businessDateString()}.csv"`,
       "Cache-Control": "no-store",
     },
   });

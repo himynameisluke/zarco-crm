@@ -32,10 +32,11 @@ import {
 } from "@/app/(app)/projects/actions-tasks";
 import { PriorityChip } from "./badges";
 import type { MemberOption, ProjectPhaseRow, ProjectTaskRow } from "./types";
+import { businessDateString } from "@/lib/dates/business";
 
 function toDateInputValue(d: Date | null): string {
   if (!d) return "";
-  return d.toISOString().slice(0, 10);
+  return businessDateString(d);
 }
 
 export function TaskRow({

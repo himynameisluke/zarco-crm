@@ -25,6 +25,7 @@ import { expandTemplate, type TemplateItemInput } from "@/lib/projects/template"
 import { PROJECT_TYPES, PROJECT_TYPE_LABELS, type ProjectTypeValue } from "@/lib/projects/labels";
 import { createProjectWizard } from "@/app/(app)/projects/actions";
 import { seedProjectTemplates } from "@/app/(app)/projects/actions-detail-extra";
+import { businessDateString } from "@/lib/dates/business";
 
 type Option = { id: string; name: string };
 
@@ -37,7 +38,7 @@ export type WizardTemplate = {
 };
 
 function todayIso() {
-  return new Date().toISOString().slice(0, 10);
+  return businessDateString();
 }
 
 export function ProjectWizard({

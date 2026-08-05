@@ -32,6 +32,7 @@ import {
   updateProjectMilestone,
 } from "@/app/(app)/projects/actions-milestones";
 import type { MemberOption, ProjectMilestoneRow, ProjectPhaseRow } from "./types";
+import { businessDateString } from "@/lib/dates/business";
 
 function MilestoneForm({
   action,
@@ -180,7 +181,7 @@ export function MilestonesPanel({
       ) : (
         <ul className="space-y-2">
           {sorted.map((m) => {
-            const overdue = !!m.dueDate && !m.completedAt && m.dueDate < now.toISOString().slice(0, 10);
+            const overdue = !!m.dueDate && !m.completedAt && m.dueDate < businessDateString(now);
             return (
               <li
                 key={m.id}

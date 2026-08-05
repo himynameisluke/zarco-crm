@@ -8,6 +8,7 @@ import { requireCurrentWorkspace } from "@/lib/workspace/current";
 import { Topbar } from "@/components/nav/topbar";
 import { ContractForm } from "@/components/renewals/contract-form";
 import { createContract } from "../actions";
+import { businessDateString } from "@/lib/dates/business";
 
 /**
  * New contract. When arriving from a won deal ("Track as contract"), ?dealId=
@@ -51,10 +52,10 @@ export default async function NewContractPage({
       : Promise.resolve(null),
   ]);
 
-  const today = new Date().toISOString().slice(0, 10);
-  const inAYear = new Date(Date.now() + 365 * 24 * 60 * 60 * 1000)
-    .toISOString()
-    .slice(0, 10);
+  const today = businessDateString();
+  const inAYear = businessDateString(
+    new Date(Date.now() + 365 * 24 * 60 * 60 * 1000),
+  );
 
   const defaults = sourceDeal
     ? {

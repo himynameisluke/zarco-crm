@@ -20,4 +20,12 @@ describe("isExpired", () => {
   it("is false before the validUntil date", () => {
     expect(isExpired("2026-12-31", AUG_3)).toBe(false);
   });
+
+  it("uses the UK-local day, not UTC — expired at 00:30 BST the day after", () => {
+    // 23:30 UTC on the 2nd = 00:30 BST on the 3rd; a quote valid until the
+    // 2nd has expired from the business's point of view.
+    const halfPastMidnightBst = new Date("2026-08-02T23:30:00Z");
+    expect(isExpired("2026-08-02", halfPastMidnightBst)).toBe(true);
+    expect(isExpired("2026-08-03", halfPastMidnightBst)).toBe(false);
+  });
 });
