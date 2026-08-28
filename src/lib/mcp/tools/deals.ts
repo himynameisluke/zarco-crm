@@ -5,12 +5,14 @@ import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { db } from "@/lib/db";
 import {
   activities,
+  authUsers,
   contacts,
   deals,
   organizations,
   projects,
   quotes,
 } from "@/lib/db/schema";
+import { withOwnerName } from "./owner-name";
 import { auditMcpWrite } from "../audit";
 import { requireMcpWorkspace, textResult } from "../context";
 import { entityInWorkspace } from "../scope";
@@ -414,7 +416,7 @@ export function registerDealTools(server: McpServer) {
     "list_deals",
     {
       description:
-        "List deals with optional filters. No query string required — use this to scan the whole pipeline (unlike find_deal). Filters: stage, type, createdSinceDays (e.g. 7 = last week). Default limit 50, max 200. Ordered by updated_at desc.",
+        "List deals with optional filters. No query string required — use this to scan the whole pipeline (unlike find_deal). Filters: stage, type, createdSinceDays (e.g. 7 = last week). Default limit 50, max 200. Ordered by updated_at desc. Rows carry ownerName (the deal owner's display name, null when unowned).",
       inputSchema: {
         stage: z.enum(STAGE_VALUES).optional(),
         type: z.enum(TYPE_VALUES).optional(),
@@ -451,6 +453,7 @@ export function registerDealTools(server: McpServer) {
           primaryContactId: deals.primaryContactId,
           createdAt: deals.createdAt,
           updatedAt: deals.updatedAt,
+          ownerEmail: authUsers.email,
         })
         .from(deals)
         .leftJoin(
@@ -460,11 +463,12 @@ export function registerDealTools(server: McpServer) {
             eq(organizations.workspaceId, workspaceId),
           ),
         )
+        .leftJoin(authUsers, eq(deals.ownerId, authUsers.id))
         .where(and(...filters))
         .orderBy(desc(deals.updatedAt))
         .limit(limit);
 
-      return textResult({ count: rows.length, deals: rows });
+      return textResult({ count: rows.length, deals: rows.map(withOwnerName) });
     },
   );
 

@@ -3,9 +3,11 @@ import { and, desc, eq, gte, ilike, or } from "drizzle-orm";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 
 import { db } from "@/lib/db";
-import { contacts, deals, organizations } from "@/lib/db/schema";
+import { authUsers, contacts, deals, organizations } from "@/lib/db/schema";
+import { displayNameFromEmail } from "@/lib/workspace/display-name";
 import { auditMcpWrite } from "../audit";
 import { requireMcpWorkspace, textResult } from "../context";
+import { withOwnerName } from "./owner-name";
 
 function nullable(value: string | undefined | null): string | null {
   if (!value) return null;
@@ -13,12 +15,13 @@ function nullable(value: string | undefined | null): string | null {
   return trimmed.length ? trimmed : null;
 }
 
+
 export function registerOrganizationTools(server: McpServer) {
   server.registerTool(
     "find_organization",
     {
       description:
-        "Search organizations by name or domain. Returns up to 20 matches with id, name, domain, industry. Use get_organization for full details and related contacts/deals.",
+        "Search organizations by name or domain. Returns up to 20 matches with id, name, domain, industry, ownerName. Use get_organization for full details and related contacts/deals.",
       inputSchema: {
         query: z
           .string()
@@ -36,8 +39,10 @@ export function registerOrganizationTools(server: McpServer) {
           name: organizations.name,
           domain: organizations.domain,
           industry: organizations.industry,
+          ownerEmail: authUsers.email,
         })
         .from(organizations)
+        .leftJoin(authUsers, eq(organizations.ownerId, authUsers.id))
         .where(
           and(
             eq(organizations.workspaceId, workspaceId),
@@ -49,7 +54,7 @@ export function registerOrganizationTools(server: McpServer) {
         )
         .orderBy(desc(organizations.updatedAt))
         .limit(20);
-      return textResult({ count: rows.length, organizations: rows });
+      return textResult({ count: rows.length, organizations: rows.map(withOwnerName) });
     },
   );
 
@@ -66,17 +71,22 @@ export function registerOrganizationTools(server: McpServer) {
     async ({ id }, { authInfo }) => {
       const { workspaceId } = await requireMcpWorkspace(authInfo);
 
-      const [org] = await db
-        .select()
+      const [row] = await db
+        .select({ org: organizations, ownerEmail: authUsers.email })
         .from(organizations)
+        .leftJoin(authUsers, eq(organizations.ownerId, authUsers.id))
         .where(
           and(eq(organizations.id, id), eq(organizations.workspaceId, workspaceId)),
         )
         .limit(1);
 
-      if (!org) {
+      if (!row) {
         return textResult({ error: "not_found", id });
       }
+      const org = {
+        ...row.org,
+        ownerName: row.ownerEmail ? displayNameFromEmail(row.ownerEmail) : null,
+      };
 
       const [orgContacts, orgDeals] = await Promise.all([
         db
@@ -230,7 +240,7 @@ export function registerOrganizationTools(server: McpServer) {
     "list_organizations",
     {
       description:
-        "List organizations with optional filters. No query string required (unlike find_organization). Filters: industry (substring), createdSinceDays. Default limit 50, max 200. Ordered by updated_at desc.",
+        "List organizations with optional filters. No query string required (unlike find_organization). Filters: industry (substring), createdSinceDays. Default limit 50, max 200. Ordered by updated_at desc. Rows carry ownerName (the account owner's display name, null when unowned).",
       inputSchema: {
         industry: z.string().trim().max(120).optional(),
         createdSinceDays: z.number().int().min(1).max(365).optional(),
@@ -260,13 +270,15 @@ export function registerOrganizationTools(server: McpServer) {
           employeeCount: organizations.employeeCount,
           createdAt: organizations.createdAt,
           updatedAt: organizations.updatedAt,
+          ownerEmail: authUsers.email,
         })
         .from(organizations)
+        .leftJoin(authUsers, eq(organizations.ownerId, authUsers.id))
         .where(and(...filters))
         .orderBy(desc(organizations.updatedAt))
         .limit(limit);
 
-      return textResult({ count: rows.length, organizations: rows });
+      return textResult({ count: rows.length, organizations: rows.map(withOwnerName) });
     },
   );
 }

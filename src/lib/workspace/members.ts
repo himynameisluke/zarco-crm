@@ -11,21 +11,10 @@ export type WorkspaceMember = {
   role: string;
 };
 
-/**
- * Turns an email into a readable display name: "luke.burywood@zarco.uk" →
- * "Luke Burywood". There's no profiles table yet — email is the only
- * identity we hold — so this is the display-name source for owners and
- * assignees everywhere. Swap for a real profiles lookup when one exists.
- */
-export function displayNameFromEmail(email: string | null): string {
-  if (!email) return "Unknown user";
-  const local = email.split("@")[0] ?? "";
-  const words = local
-    .split(/[._-]+/)
-    .filter(Boolean)
-    .map((w) => w[0]!.toUpperCase() + w.slice(1));
-  return words.length ? words.join(" ") : email;
-}
+// displayNameFromEmail moved to display-name.ts (pure, no server-only) so MCP
+// payload mappers and their tests can use it; re-exported here for existing callers.
+import { displayNameFromEmail } from "./display-name";
+export { displayNameFromEmail };
 
 /**
  * All members of a workspace with resolved display names, for owner/assignee
